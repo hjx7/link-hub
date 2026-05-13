@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkHub</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 左侧菜单 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">🔗</div>
+          <span class="logo-text">LinkHub</span>
+        </div>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-page="search">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-text">快速搜索</span>
+        </button>
+        <button class="nav-item" data-page="sites">
+          <span class="nav-icon">🌐</span>
+          <span class="nav-text">常用网站</span>
+        </button>
+        <button class="nav-item" data-page="bookmarks">
+          <span class="nav-icon">📁</span>
+          <span class="nav-text">我的书签</span>
+        </button>
+        <button class="nav-item" data-page="tools">
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-text">实用工具</span>
+        </button>
+      </nav>
+    </aside>
+    
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 快速搜索页 -->
+      <div class="page active" id="page-search">
+        <div class="search-hero">
+          <div class="logo-large">
+            <div class="logo-icon">🔗</div>
+            <span class="logo-text">LinkHub</span>
+          </div>
+        </div>
+        
+        <div class="search-container">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="mainSearchInput" placeholder="输入关键词搜索书签..." autocomplete="off">
+            <button class="search-btn" data-action="search">搜索</button>
+          </div>
+        </div>
+        
+        <div class="hot-tags">
+          <span class="hot-title">热门标签：</span>
+          <button class="tag-item" data-action="tag" data-tag="编程">编程</button>
+          <button class="tag-item" data-action="tag" data-tag="AI">AI</button>
+          <button class="tag-item" data-action="tag" data-tag="设计">设计</button>
+          <button class="tag-item" data-action="tag" data-tag="工具">工具</button>
+          <button class="tag-item" data-action="tag" data-tag="文档">文档</button>
+        </div>
+        
+        <div class="search-results" id="searchResults"></div>
+      </div>
+      
+      <!-- 常用网站页 -->
+      <div class="page" id="page-sites">
+        <div class="page-header">
+          <h2>常用网站</h2>
+        </div>
+        <div class="quick-grid" id="sitesGrid"></div>
+      </div>
+      
+      <!-- 我的书签页 -->
+      <div class="page" id="page-bookmarks">
+        <!-- 顶部工具栏区域 -->
+        <div class="bookmark-toolbar">
+          <div class="toolbar-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" placeholder="搜索书签..." id="bookmarkFilter">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-icon" data-action="export-bookmarks" title="导出书签">📤</button>
+            <button class="btn btn-icon" data-action="import-bookmarks" title="导入书签">📥</button>
+            <input type="file" id="importFileInput" accept=".json" style="display:none">
+          </div>
+        </div>
+        
+        <!-- 主体内容区域 -->
+        <div class="bookmark-layout">
+          <!-- 左侧文件夹树面板 -->
+          <div class="bookmark-tree-panel" id="bookmarkTreePanel">
+            <div class="tree-panel-content" id="bookmarkTree"></div>
+          </div>
+          <div class="bookmark-splitter" id="bookmarkSplitter"></div>
+          <!-- 右侧书签内容面板 -->
+          <div class="bookmark-content-panel" id="bookmarkContentPanel">
+            <div class="content-panel-header" id="contentPanelHeader">
+              <span class="content-panel-title">📚 书签栏</span>
+              <div class="content-panel-actions">
+                <button class="btn btn-primary btn-sm" data-action="open-add">➕ 添加书签</button>
+                <button class="btn btn-primary btn-sm" data-action="open-add-folder">📁 添加文件夹</button>
+              </div>
+            </div>
+            <div class="content-panel-content" id="bookmarkContent"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 实用工具页 -->
+      <div class="page" id="page-tools">
+        <div class="page-header">
+          <h2>实用工具</h2>
+        </div>
+        <div class="tools-container">
+          <div class="tools-grid" data-action-root="tool">
+            <button class="tool-card" data-action="open-tool" data-type="json">
+              <span class="tool-icon">{}</span>
+              <span class="tool-name">JSON 格式化</span>
+            </button>
+            <button class="tool-card" data-action="open-tool" data-type="timestamp">
+              <span class="tool-icon">⏰</span>
+              <span class="tool-name">时间戳转换</span>
+            </button>
+            <button class="tool-card" data-action="open-tool" data-type="url">
+              <span class="tool-icon">🔗</span>
+              <span class="tool-name">URL 编解码</span>
+            </button>
+            <button class="tool-card" data-action="open-tool" data-type="base64">
+              <span class="tool-icon">01</span>
+              <span class="tool-name">Base64 编解码</span>
+            </button>
+            <button class="tool-card" data-action="open-tool" data-type="color">
+              <span class="tool-icon">🎨</span>
+              <span class="tool-name">颜色转换</span>
+            </button>
+            <button class="tool-card" data-action="open-tool" data-type="uuid">
+              <span class="tool-icon">🎲</span>
+              <span class="tool-name">UUID 生成</span>
+            </button>
+          </div>
+          
+          <div class="tool-panel" id="toolPanel">
+            <div class="tool-header">
+              <span class="tool-title" id="toolTitle">JSON 格式化</span>
+              <button class="close-btn" data-action="close-tool">×</button>
+            </div>
+            <textarea class="tool-input" id="toolInput" placeholder="输入内容..."></textarea>
+            <div class="tool-output" id="toolOutput"></div>
+            <div class="tool-actions">
+              <button class="btn btn-primary" data-action="execute-tool">转换</button>
+              <button class="btn btn-secondary" data-action="copy-tool">复制结果</button>
+              <button class="btn btn-secondary" data-action="clear-tool">清空</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <!-- 添加/编辑书签弹窗 -->
+  <div class="modal" id="bookmarkModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="bmModalTitle">添加书签</span>
+        <button class="close-btn" data-action="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="bmId">
+        <input type="hidden" id="bmParentId">
+        <div class="form-group">
+          <label>标题</label>
+          <input type="text" id="bmTitle" placeholder="书签名称">
+        </div>
+        <div class="form-group">
+          <label>网址</label>
+          <input type="url" id="bmUrl" placeholder="https://example.com">
+        </div>
+        <div class="form-group">
+          <label>所属文件夹</label>
+          <div class="tree-select" id="treeSelectContainer">
+            <div class="tree-select-input" id="treeSelectInput">
+              <span class="tree-select-text">书签栏</span>
+              <span class="tree-select-arrow">▼</span>
+            </div>
+            <div class="tree-select-dropdown" id="treeSelectDropdown">
+              <div class="tree-select-options" id="treeSelectOptions"></div>
+            </div>
+          </div>
+          <input type="hidden" id="bmCategory" value="1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-action="close-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-bookmark">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 确认删除弹窗 -->
+  <div class="modal" id="confirmModal" style="display: none;">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <span>确认删除</span>
+        <button class="close-btn" data-action="close-confirm">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage">确定要删除这个书签吗？</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-action="close-confirm">取消</button>
+        <button class="btn btn-danger" data-action="confirm-delete">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入选择弹窗 -->
+  <div class="modal" id="importModal" style="display: none;">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <span>导入书签</span>
+        <button class="close-btn" data-action="close-import">×</button>
+      </div>
+      <div class="modal-body">
+        <p>请选择导入方式：</p>
+        <div class="import-options">
+          <button class="btn btn-secondary" data-action="import-merge">🔗 与现有书签合并</button>
+          <button class="btn btn-danger" data-action="import-replace">🔄 覆盖现有书签</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS 模块（按依赖顺序引入） -->
+  <script src="js/utils.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/favicons.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/sites.js"></script>
+  <script src="js/bookmarks.js"></script>
+  <script src="js/tools.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

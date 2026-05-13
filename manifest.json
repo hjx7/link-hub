@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "LinkHub - 书签管理器",
+  "version": "1.0.0",
+  "description": "简洁高效的链接书签管理工具 - 快速搜索、分类管理、实用工具",
+  "permissions": [
+    "storage",
+    "tabs",
+    "bookmarks",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "assets/icon16.svg",
+      "32": "assets/icon.svg",
+      "48": "assets/icon.svg",
+      "128": "assets/icon.svg"
+    },
+    "default_title": "LinkHub"
+  },
+  "icons": {
+    "16": "assets/icon16.svg",
+    "32": "assets/icon.svg",
+    "48": "assets/icon.svg",
+    "128": "assets/icon.svg"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:;"
+  }
+}
