@@ -801,9 +801,12 @@ function renderTreeFolderNode(node, depth = 0) {
     });
   }
   
+  const isSystemRoot = (node.id === '1' || node.id === '2');
   return `
     <div class="tree-folder" data-id="${node.id}">
-      <div class="tree-folder-header ${isSelected ? 'selected' : ''}" data-action="select-folder" data-id="${node.id}">
+      <div class="tree-folder-header ${isSelected ? 'selected' : ''}" 
+           data-action="select-folder" data-id="${node.id}"
+           draggable="${!isSystemRoot}">
         ${hasChildren ? `<span class="tree-folder-toggle ${isExpanded ? 'expanded' : ''}" data-action="toggle-folder" data-id="${node.id}">▶</span>` : '<span class="tree-folder-toggle"></span>'}
         <span class="tree-folder-icon">${icon}</span>
         <span class="tree-folder-name">${escapeHtml(node.title)}</span>
@@ -1148,7 +1151,386 @@ function editFolder(id) {
   openEditFolder(id);
 }
 
-// 导出书签
+// 右键菜单上下文（当前操作的文件夹信息）
+let _contextMenuData = null;
+
+// 拖拽相关
+let _dragSourceId = null;          // 正在拖拽的文件夹 ID
+let _dragOverTargetId = null;      // 当前悬停的目标文件夹 ID
+let _dragOverPosition = null;      // 'before' | 'after' | 'inside'
+
+// 创建右键菜单 DOM（单例）
+function getContextMenuEl() {
+  let menu = document.getElementById('treeContextMenu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.id = 'treeContextMenu';
+    menu.className = 'context-menu';
+    menu.innerHTML = `
+      <button class="context-menu-item" data-action="rename">
+        <span class="context-menu-icon">✏️</span>
+        <span>重命名</span>
+      </button>
+      <div class="context-menu-divider"></div>
+      <button class="context-menu-item danger" data-action="delete">
+        <span class="context-menu-icon">🗑️</span>
+        <span>删除</span>
+      </button>
+    `;
+    document.body.appendChild(menu);
+
+    // 点击菜单项
+    menu.addEventListener('click', (e) => {
+      const item = e.target.closest('.context-menu-item');
+      if (!item || !_contextMenuData) return;
+      const action = item.dataset.action;
+      const folderId = _contextMenuData.folderId;
+      hideContextMenu();
+      if (action === 'rename') {
+        openEditFolder(folderId);
+      } else if (action === 'delete') {
+        showDeleteConfirm(folderId, 'folder');
+      }
+    });
+  }
+  return menu;
+}
+
+// 显示右键菜单
+function showContextMenu(x, y, folderId) {
+  const node = findBookmarkNode(_chromeBookmarkTree, folderId);
+  if (!node) return;
+
+  _contextMenuData = { folderId, node };
+
+  const menu = getContextMenuEl();
+
+  // 检查是否为系统级根文件夹（书签栏、其他书签）
+  const isSystemRoot = (node.id === '1' || node.id === '2');
+
+  // 系统根文件夹不允许删除
+  const deleteItem = menu.querySelector('[data-action="delete"]');
+  if (deleteItem) {
+    deleteItem.style.display = isSystemRoot ? 'none' : '';
+  }
+
+  // 系统根文件夹不允许重命名
+  const renameItem = menu.querySelector('[data-action="rename"]');
+  if (renameItem) {
+    renameItem.style.display = isSystemRoot ? 'none' : '';
+  }
+
+  // 如果没有可用操作，不显示菜单
+  if (isSystemRoot) return;
+
+  menu.style.display = 'block';
+  menu.classList.add('show');
+
+  // 确保菜单不超出视口
+  const menuRect = menu.getBoundingClientRect();
+  let left = x;
+  let top = y;
+  if (x + 170 > window.innerWidth) left = x - 170;
+  if (y + 80 > window.innerHeight) top = y - 80;
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+
+// 隐藏右键菜单
+function hideContextMenu() {
+  const menu = document.getElementById('treeContextMenu');
+  if (menu) {
+    menu.style.display = 'none';
+    menu.classList.remove('show');
+  }
+  _contextMenuData = null;
+}
+
+// 获取拖拽指示器 DOM（单例）
+function getDragIndicatorEl() {
+  let el = document.getElementById('dragIndicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dragIndicator';
+    el.className = 'drag-indicator';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+// 检查 nodeId 是否是 ancestorId 的后代节点
+function isDescendantOf(nodeId, ancestorId) {
+  const node = findBookmarkNode(_chromeBookmarkTree, nodeId);
+  if (!node || nodeId === ancestorId) return false;
+  const parent = findParentNode(_chromeBookmarkTree, nodeId);
+  if (!parent) return false;
+  if (parent.id === ancestorId) return true;
+  return isDescendantOf(parent.id, ancestorId);
+}
+
+// 拖拽开始
+function handleTreeDragStart(e) {
+  const header = e.target.closest('.tree-folder-header');
+  if (!header) { e.preventDefault(); return; }
+  const folderId = header.dataset.id;
+  if (!folderId) { e.preventDefault(); return; }
+
+  // 系统根文件夹不可拖拽
+  if (folderId === '1' || folderId === '2') { e.preventDefault(); return; }
+
+  _dragSourceId = folderId;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', folderId);
+
+  // 设置拖拽半透明效果
+  const folderEl = header.closest('.tree-folder');
+  if (folderEl) {
+    requestAnimationFrame(() => {
+      folderEl.classList.add('dragging-source');
+    });
+  }
+}
+
+// 拖拽悬停
+function handleTreeDragOver(e) {
+  if (!_dragSourceId) return;
+
+  // 标记为有效放置区域，保证 drop 事件能触发
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  // 获取面板中所有可见的 header（排除正在拖拽的源）
+  const panel = document.getElementById('bookmarkTreePanel');
+  if (!panel) return;
+
+  const allHeaders = Array.from(panel.querySelectorAll('.tree-folder-header'))
+    .filter(h => h.dataset.id !== _dragSourceId);
+
+  if (allHeaders.length === 0) return;
+
+  // 找到光标所在位置对应的目标和插入方向
+  // 策略：找光标最接近哪个 header 的上边缘或下边缘
+  let targetId = null;
+  let targetHeader = null;
+  let position = null;
+
+  const cursorY = e.clientY;
+
+  // 检查光标是否在某个 header 内部
+  for (const h of allHeaders) {
+    const rect = h.getBoundingClientRect();
+    if (cursorY >= rect.top && cursorY <= rect.bottom) {
+      targetHeader = h;
+      targetId = h.dataset.id;
+      // 上半部分 = before，下半部分 = after
+      const midY = rect.top + rect.height / 2;
+      position = cursorY < midY ? 'before' : 'after';
+      break;
+    }
+  }
+
+  // 如果光标不在任何 header 内，找最近的边缘
+  if (!targetId) {
+    let minDist = Infinity;
+    for (const h of allHeaders) {
+      const rect = h.getBoundingClientRect();
+      // 距离上边缘
+      const distTop = Math.abs(cursorY - rect.top);
+      // 距离下边缘
+      const distBottom = Math.abs(cursorY - rect.bottom);
+
+      if (distTop < minDist) {
+        minDist = distTop;
+        targetId = h.dataset.id;
+        targetHeader = h;
+        position = 'before';
+      }
+      if (distBottom < minDist) {
+        minDist = distBottom;
+        targetId = h.dataset.id;
+        targetHeader = h;
+        position = 'after';
+      }
+    }
+  }
+
+  if (!targetId || !targetHeader) return;
+
+  // 不能拖到后代上
+  if (isDescendantOf(targetId, _dragSourceId)) {
+    clearDragHighlight();
+    return;
+  }
+
+  // 如果目标和位置没变，不重复更新 DOM
+  if (_dragOverTargetId === targetId && _dragOverPosition === position) {
+    return;
+  }
+
+  // 清除旧的高亮
+  clearDragHighlight();
+
+  _dragOverTargetId = targetId;
+  _dragOverPosition = position;
+
+  // 显示指示线（始终基于 header 边界）
+  const indicator = getDragIndicatorEl();
+  const headerRect = targetHeader.getBoundingClientRect();
+  indicator.style.left = headerRect.left + 'px';
+  indicator.style.width = headerRect.width + 'px';
+  indicator.style.top = (position === 'before' ? headerRect.top : headerRect.bottom) + 'px';
+  indicator.style.display = 'block';
+}
+
+// 清除拖拽高亮
+function clearDragHighlight() {
+  const prev = document.querySelector('.drag-over-inside');
+  if (prev) prev.classList.remove('drag-over-inside');
+  const indicator = document.getElementById('dragIndicator');
+  if (indicator) indicator.style.display = 'none';
+  _dragOverTargetId = null;
+  _dragOverPosition = null;
+}
+
+// 拖拽结束
+function handleTreeDragEnd(e) {
+  const sourceEl = document.querySelector('.tree-folder.dragging-source');
+  if (sourceEl) sourceEl.classList.remove('dragging-source');
+  clearDragHighlight();
+  _dragSourceId = null;
+}
+
+// 放置
+async function handleTreeDrop(e) {
+  e.preventDefault();
+
+  const sourceId = _dragSourceId;
+  if (!sourceId) {
+    handleTreeDragEnd(e);
+    return;
+  }
+
+  // 在 drop 时重新计算目标位置（不依赖可能过时的 dragover 状态）
+  let targetId = _dragOverTargetId;
+  let position = _dragOverPosition;
+
+  // 如果 dragover 状态丢失，尝试从 drop 事件位置重新计算
+  if (!targetId || !position) {
+    const panel = document.getElementById('bookmarkTreePanel');
+    if (panel) {
+      const allHeaders = Array.from(panel.querySelectorAll('.tree-folder-header'))
+        .filter(h => h.dataset.id !== sourceId);
+      const cursorY = e.clientY;
+
+      for (const h of allHeaders) {
+        const rect = h.getBoundingClientRect();
+        if (cursorY >= rect.top && cursorY <= rect.bottom) {
+          targetId = h.dataset.id;
+          const midY = rect.top + rect.height / 2;
+          position = cursorY < midY ? 'before' : 'after';
+          break;
+        }
+      }
+
+      if (!targetId) {
+        let minDist = Infinity;
+        for (const h of allHeaders) {
+          const rect = h.getBoundingClientRect();
+          const distTop = Math.abs(cursorY - rect.top);
+          const distBottom = Math.abs(cursorY - rect.bottom);
+          if (distTop < minDist) {
+            minDist = distTop;
+            targetId = h.dataset.id;
+            position = 'before';
+          }
+          if (distBottom < minDist) {
+            minDist = distBottom;
+            targetId = h.dataset.id;
+            position = 'after';
+          }
+        }
+      }
+    }
+  }
+
+  // 清理拖拽状态
+  handleTreeDragEnd(e);
+
+  if (!targetId || !position) return;
+
+  try {
+    const { sendMessage } = window.LinkHubUtils;
+    const targetNode = findBookmarkNode(_chromeBookmarkTree, targetId);
+    if (!targetNode) throw new Error('目标文件夹未找到');
+
+    let parentId, index;
+
+    // 插入到目标文件夹的前面或后面（在其父级中）
+    const targetParent = findParentNode(_chromeBookmarkTree, targetId);
+    if (!targetParent) throw new Error('无法找到目标父文件夹');
+    parentId = targetParent.id;
+
+    // 获取目标在父级中的索引
+    const targetIdx = (targetParent.children || []).findIndex(c => c.id === targetId);
+    if (targetIdx === -1) throw new Error('无法计算位置');
+
+    index = position === 'before' ? targetIdx : targetIdx + 1;
+
+    // 注意：Chrome bookmarks.move 的 index 是基于原始数组的位置
+    // Chrome 内部会自动处理同父级移动时的索引偏移，无需手动调整
+
+    // 防止移到自己的子文件夹中
+    if (isDescendantOf(parentId, sourceId)) {
+      alert('不能将文件夹移动到它自己的子文件夹中');
+      return;
+    }
+
+    // 发送移动请求
+    let moveOk = false;
+    try {
+      await sendMessage({
+        action: 'moveBookmark',
+        data: { id: sourceId, parentId, index }
+      });
+      moveOk = true;
+    } catch (msgErr) {
+      if (msgErr.message && msgErr.message.includes('port closed')) {
+        moveOk = true;
+      } else {
+        throw msgErr;
+      }
+    }
+
+    // 重新加载书签树
+    if (moveOk) {
+      let retries = 2;
+      while (retries > 0) {
+        try {
+          await loadChromeBookmarkTree();
+          break;
+        } catch (loadErr) {
+          retries--;
+          if (retries === 0) throw loadErr;
+          await new Promise(r => setTimeout(r, 300));
+        }
+      }
+      _initialExpandDone = false;
+      await renderBookmarks();
+    }
+
+  } catch (err) {
+    alert('移动失败: ' + err.message);
+  }
+}
+
+// 拖拽离开树面板
+function handleTreeDragLeave(e) {
+  const panel = document.getElementById('bookmarkTreePanel');
+  if (panel && !panel.contains(e.relatedTarget)) {
+    clearDragHighlight();
+  }
+}
+
 function exportBookmarks() {
   if (!_chromeBookmarkTree) {
     alert('书签数据未加载');
@@ -1329,7 +1711,14 @@ window.LinkHubBookmarks = {
   importBookmarks,
   importMerge,
   importReplace,
-  closeImportModal
+  closeImportModal,
+  showContextMenu,
+  hideContextMenu,
+  handleTreeDragStart,
+  handleTreeDragOver,
+  handleTreeDragLeave,
+  handleTreeDrop,
+  handleTreeDragEnd
 };
 
 // 初始化分隔条拖动功能

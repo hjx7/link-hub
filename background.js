@@ -392,6 +392,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return results;
     },
     
+    // 移动书签/文件夹
+    async moveBookmark(data) {
+      const { id, parentId, index } = data;
+      return new Promise((resolve, reject) => {
+        try {
+          // 允许 index 为 undefined（仅切换父文件夹时）
+          const dest = index !== undefined ? { parentId, index } : { parentId };
+          chrome.bookmarks.move(id, dest, (result) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(result);
+            }
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+    },
+    
     // 获取 favicon URL（直接返回原始 URL，让 img 标签加载）
     async fetchFavicon(data) {
       const { url } = data;

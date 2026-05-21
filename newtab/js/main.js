@@ -46,6 +46,15 @@ function setupEventListeners() {
   mainSearch.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') window.LinkHubSearch?.performMainSearch();
   });
+
+  // 点击外部关闭搜索引擎下拉
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('engineDropdown');
+    const btn = document.getElementById('searchEngineBtn');
+    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
   
   // 书签筛选
   const filterInput = document.getElementById('bookmarkFilter');
@@ -86,7 +95,46 @@ function setupEventListeners() {
       return;
     }
   });
-  
+
+  // 书签树右键菜单
+  document.getElementById('bookmarkTreePanel')?.addEventListener('contextmenu', (e) => {
+    const header = e.target.closest('.tree-folder-header');
+    if (header) {
+      e.preventDefault();
+      const folderId = header.dataset.id;
+      if (folderId) {
+        window.LinkHubBookmarks?.showContextMenu(e.clientX, e.clientY, folderId);
+      }
+    }
+  });
+
+  // 全局点击时隐藏右键菜单
+  document.addEventListener('click', () => {
+    window.LinkHubBookmarks?.hideContextMenu();
+  });
+
+  // 全局右键点击空白区域时隐藏菜单
+  document.addEventListener('contextmenu', (e) => {
+    if (!e.target.closest('#bookmarkTreePanel')) {
+      window.LinkHubBookmarks?.hideContextMenu();
+    }
+  });
+
+  // 滚动时隐藏右键菜单
+  document.getElementById('bookmarkTreePanel')?.addEventListener('scroll', () => {
+    window.LinkHubBookmarks?.hideContextMenu();
+  });
+
+  // 文件夹拖拽排序
+  const treePanel = document.getElementById('bookmarkTreePanel');
+  if (treePanel) {
+    treePanel.addEventListener('dragstart', (e) => window.LinkHubBookmarks?.handleTreeDragStart(e));
+    treePanel.addEventListener('dragover', (e) => window.LinkHubBookmarks?.handleTreeDragOver(e));
+    treePanel.addEventListener('dragleave', (e) => window.LinkHubBookmarks?.handleTreeDragLeave(e));
+    treePanel.addEventListener('drop', (e) => window.LinkHubBookmarks?.handleTreeDrop(e));
+    treePanel.addEventListener('dragend', (e) => window.LinkHubBookmarks?.handleTreeDragEnd(e));
+  }
+
   // 内容区点击
   document.getElementById('bookmarkContentPanel')?.addEventListener('click', (e) => {
     // 子文件夹选择
@@ -106,7 +154,11 @@ function setupEventListeners() {
       e.stopPropagation();
     }
     
-    const action = e.target.dataset.action;
+    // 从最近包含 data-action 的元素获取 action
+    const actionTarget = e.target.closest('[data-action]');
+    if (!actionTarget) return;
+    
+    const action = actionTarget.dataset.action;
     if (!action) return;
     
     switch (action) {
@@ -114,8 +166,11 @@ function setupEventListeners() {
       case 'search':
         window.LinkHubSearch?.performMainSearch();
         break;
-      case 'tag':
-        window.LinkHubSearch?.searchByTag(e.target.dataset.tag);
+      case 'toggle-engine':
+        window.LinkHubSearch?.toggleEngineDropdown();
+        break;
+      case 'select-engine':
+        window.LinkHubSearch?.selectEngine(actionTarget.dataset.engine);
         break;
       // 书签 - 增删改查
       case 'open-add':
@@ -155,19 +210,19 @@ function setupEventListeners() {
         window.LinkHubBookmarks?.saveFolder();
         break;
       case 'edit-bookmark':
-        window.LinkHubBookmarks?.editBookmark(e.target.dataset.id);
+        window.LinkHubBookmarks?.editBookmark(actionTarget.dataset.id);
         break;
       case 'delete-bookmark':
-        window.LinkHubBookmarks?.deleteBookmark(e.target.dataset.id);
+        window.LinkHubBookmarks?.deleteBookmark(actionTarget.dataset.id);
         break;
       case 'edit-folder':
-        window.LinkHubBookmarks?.editFolder(e.target.dataset.id);
+        window.LinkHubBookmarks?.editFolder(actionTarget.dataset.id);
         break;
       case 'delete-folder':
-        window.LinkHubBookmarks?.deleteFolder(e.target.dataset.id);
+        window.LinkHubBookmarks?.deleteFolder(actionTarget.dataset.id);
         break;
       case 'add-in-folder':
-        window.LinkHubBookmarks?.openAddBookmark(e.target.dataset.parent);
+        window.LinkHubBookmarks?.openAddBookmark(actionTarget.dataset.parent);
         break;
       case 'close-confirm':
         window.LinkHubBookmarks?.closeConfirm();
@@ -175,12 +230,9 @@ function setupEventListeners() {
       case 'confirm-delete':
         window.LinkHubBookmarks?.confirmDelete();
         break;
-      // 工具
-      case 'open-tool':
-        window.LinkHubTools?.openTool(e.target.closest('[data-type]')?.dataset.type);
-        break;
-      case 'close-tool':
-        window.LinkHubTools?.closeTool();
+      // 工具 Tab 切换
+      case 'tool':
+        window.LinkHubTools?.selectTool(actionTarget.dataset.tool);
         break;
       case 'execute-tool':
         window.LinkHubTools?.executeTool();
@@ -190,6 +242,9 @@ function setupEventListeners() {
         break;
       case 'clear-tool':
         window.LinkHubTools?.clearTool();
+        break;
+      case 'set-json-mode':
+        window.LinkHubTools?.setJsonMode(actionTarget.dataset.mode);
         break;
     }
   });
@@ -224,6 +279,7 @@ function render() {
       window.LinkHubBookmarks?.renderBookmarks();
       break;
     case 'tools':
+      // 工具页面初始化已由 tools.js 处理
       break;
   }
 }
