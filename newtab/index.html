@@ -115,6 +115,10 @@
             <span class="tab-icon">#</span>
             <span class="tab-text">哈希</span>
           </button>
+          <button class="tools-tab" data-action="tool" data-tool="diff">
+            <span class="tab-icon">⇄</span>
+            <span class="tab-text">Diff</span>
+          </button>
         </div>
 
         <!-- 工具内容区 -->
@@ -356,6 +360,27 @@
               <textarea class="url-textarea" id="hashInput" placeholder="输入要计算哈希的文本"></textarea>
               <div class="hash-results" id="hashOutput"></div>
             </div>
+          </div>
+
+          <!-- Diff 对比工具面板 -->
+          <div class="tool-panel" id="diffToolPanel" style="display: none;">
+            <div class="diff-container">
+              <div class="diff-pane diff-pane-left">
+                <div class="diff-pane-header">原始文本</div>
+                <div class="diff-pane-body">
+                  <div class="diff-highlight-layer" id="diffHighlightLeft"></div>
+                  <textarea class="diff-edit" id="diffLeft" placeholder="粘贴原始文本..." spellcheck="false"></textarea>
+                </div>
+              </div>
+              <div class="diff-pane diff-pane-right">
+                <div class="diff-pane-header">修改后文本</div>
+                <div class="diff-pane-body">
+                  <div class="diff-highlight-layer" id="diffHighlightRight"></div>
+                  <textarea class="diff-edit" id="diffRight" placeholder="粘贴修改后文本..." spellcheck="false"></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="diff-output-stats" id="diffOutput"></div>
           </div>
         </div>
       </div>

@@ -11,7 +11,8 @@ const TOOL_TITLES = {
   url: 'URL 编解码',
   base64: 'Base64 编解码',
   jwt: 'JWT 解析',
-  hash: 'MD5/SHA 哈希'
+  hash: 'MD5/SHA 哈希',
+  diff: 'Diff 对比'
 };
 
 let currentTool = 'json';
@@ -56,6 +57,7 @@ function selectTool(tool) {
   document.getElementById('base64ToolPanel').style.display = 'none';
   document.getElementById('jwtToolPanel').style.display = 'none';
   document.getElementById('hashToolPanel').style.display = 'none';
+  document.getElementById('diffToolPanel').style.display = 'none';
 
   // JSON 工具使用双栏布局
   if (tool === 'json') {
@@ -85,6 +87,8 @@ function selectTool(tool) {
     document.getElementById('jwtToolPanel').style.display = 'flex';
   } else if (tool === 'hash') {
     document.getElementById('hashToolPanel').style.display = 'flex';
+  } else if (tool === 'diff') {
+    document.getElementById('diffToolPanel').style.display = 'flex';
   } else {
     generalPanel.style.display = 'flex';
     inputGeneral.value = '';
@@ -725,6 +729,113 @@ function testRegex() {
   }
 }
 
+// Diff 对比 — 实时对比
+function diffCompare() {
+  const left = document.getElementById('diffLeft').value;
+  const right = document.getElementById('diffRight').value;
+  const statsEl = document.getElementById('diffOutput');
+  const hlLeft = document.getElementById('diffHighlightLeft');
+  const hlRight = document.getElementById('diffHighlightRight');
+
+  if (!left && !right) {
+    hlLeft.innerHTML = '';
+    hlRight.innerHTML = '';
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  if (!left || !right) {
+    hlLeft.innerHTML = left.split('\n').map(l => `<div class="diff-hl-line">${escapeHtml(l) || ' '}</div>`).join('');
+    hlRight.innerHTML = right.split('\n').map(l => `<div class="diff-hl-line">${escapeHtml(l) || ' '}</div>`).join('');
+    statsEl.innerHTML = '';
+    return;
+  }
+
+  const leftLines = left.split('\n');
+  const rightLines = right.split('\n');
+  const diff = computeDiff(leftLines, rightLines);
+
+  const added = diff.filter(d => d.type === 'added').length;
+  const removed = diff.filter(d => d.type === 'removed').length;
+
+  // 渲染左侧高亮
+  let leftHtml = '';
+  for (const item of diff) {
+    if (item.type === 'equal') {
+      leftHtml += `<div class="diff-hl-line">${escapeHtml(item.text) || ' '}</div>`;
+    } else if (item.type === 'removed') {
+      leftHtml += `<div class="diff-hl-line diff-hl-removed">${escapeHtml(item.text) || ' '}</div>`;
+    } else if (item.type === 'added') {
+      leftHtml += `<div class="diff-hl-line diff-hl-empty">&nbsp;</div>`;
+    }
+  }
+
+  // 渲染右侧高亮
+  let rightHtml = '';
+  for (const item of diff) {
+    if (item.type === 'equal') {
+      rightHtml += `<div class="diff-hl-line">${escapeHtml(item.text) || ' '}</div>`;
+    } else if (item.type === 'added') {
+      rightHtml += `<div class="diff-hl-line diff-hl-added">${escapeHtml(item.text) || ' '}</div>`;
+    } else if (item.type === 'removed') {
+      rightHtml += `<div class="diff-hl-line diff-hl-empty">&nbsp;</div>`;
+    }
+  }
+
+  hlLeft.innerHTML = leftHtml;
+  hlRight.innerHTML = rightHtml;
+
+  if (added === 0 && removed === 0) {
+    statsEl.innerHTML = '<div class="diff-stats"><span style="color:var(--text-light)">两段文本完全相同</span></div>';
+  } else {
+    statsEl.innerHTML = `<div class="diff-stats"><span class="diff-stat-added">+${added} 新增</span><span class="diff-stat-removed">-${removed} 删除</span></div>`;
+  }
+}
+
+// LCS diff 算法
+function computeDiff(oldLines, newLines) {
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  // 构建 LCS 表
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // 回溯生成 diff
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      result.unshift({ type: 'equal', text: oldLines[i - 1], leftNum: i, rightNum: j });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ type: 'added', text: newLines[j - 1], rightNum: j });
+      j--;
+    } else {
+      result.unshift({ type: 'removed', text: oldLines[i - 1], leftNum: i });
+      i--;
+    }
+  }
+
+  return result;
+}
+
+function diffClear() {
+  document.getElementById('diffLeft').value = '';
+  document.getElementById('diffRight').value = '';
+  document.getElementById('diffOutput').innerHTML = '';
+  document.getElementById('diffHighlightLeft').innerHTML = '';
+  document.getElementById('diffHighlightRight').innerHTML = '';
+}
+
 // URL 编解码
 function urlEncode() {
   const input = document.getElementById('urlInput').value;
@@ -1130,6 +1241,8 @@ window.LinkHubTools = {
   computeAllHashes,
   hashClear,
   copyHash,
+  diffCompare,
+  diffClear,
   get currentTool() { return currentTool; }
 };
 
@@ -1220,6 +1333,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const hashInput = document.getElementById('hashInput');
   if (hashInput) {
     hashInput.addEventListener('input', window.LinkHubUtils.debounce(() => computeAllHashes(), 300));
+  }
+
+  // Diff 实时对比
+  const diffLeft = document.getElementById('diffLeft');
+  const diffRight = document.getElementById('diffRight');
+  if (diffLeft && diffRight) {
+    const doDiff = window.LinkHubUtils.debounce(() => diffCompare(), 300);
+    diffLeft.addEventListener('input', doDiff);
+    diffRight.addEventListener('input', doDiff);
+
+    // 同步 textarea 滚动到高亮层
+    diffLeft.addEventListener('scroll', () => {
+      document.getElementById('diffHighlightLeft').scrollTop = diffLeft.scrollTop;
+      document.getElementById('diffHighlightLeft').scrollLeft = diffLeft.scrollLeft;
+    });
+    diffRight.addEventListener('scroll', () => {
+      document.getElementById('diffHighlightRight').scrollTop = diffRight.scrollTop;
+      document.getElementById('diffHighlightRight').scrollLeft = diffRight.scrollLeft;
+    });
   }
   
   // 初始化默认工具

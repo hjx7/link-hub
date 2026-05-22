@@ -28,6 +28,7 @@ function getBuiltinCommands() {
     { type: CMD_TYPE.TOOL, icon: '01', title: 'Base64 编解码', desc: '打开 Base64 工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('base64'); } },
     { type: CMD_TYPE.TOOL, icon: '🔑', title: 'JWT 解析', desc: '打开 JWT 解析工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('jwt'); } },
     { type: CMD_TYPE.TOOL, icon: '#', title: 'MD5/SHA 哈希', desc: '打开哈希计算工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('hash'); } },
+    { type: CMD_TYPE.TOOL, icon: '⇄', title: 'Diff 对比', desc: '打开文本对比工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('diff'); } },
     { type: CMD_TYPE.TOOL, icon: '📋', title: 'Cron 表达式', desc: '打开 Cron 解析工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('cron'); } },
     { type: CMD_TYPE.TOOL, icon: '.*', title: '正则表达式', desc: '打开正则测试工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('regex'); } },
   ];
