@@ -150,6 +150,58 @@
               <button class="btn btn-secondary" data-action="clear-tool">清空</button>
             </div>
           </div>
+
+          <!-- 时间戳工具专用面板 -->
+          <div class="tool-panel" id="timestampToolPanel" style="display: none;">
+            <div class="ts-section">
+              <div class="ts-current">
+                <span class="ts-label">当前时间戳</span>
+                <div class="ts-now-row">
+                  <span class="ts-now-value" id="tsNowValue">—</span>
+                  <button class="btn btn-sm btn-secondary" data-action="copy-ts-now">复制</button>
+                </div>
+                <span class="ts-now-date" id="tsNowDate"></span>
+              </div>
+            </div>
+
+            <div class="ts-columns">
+              <div class="ts-section">
+                <div class="ts-title">⏰ 时间戳转日期时间</div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input" id="tsToDateInput" placeholder="输入时间戳">
+                  <select class="ts-select" id="tsToDateUnit">
+                    <option value="s">秒(s)</option>
+                    <option value="ms">毫秒(ms)</option>
+                  </select>
+                </div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input ts-result-input" id="tsToDateResult" disabled placeholder="转换结果">
+                  <select class="ts-select" id="tsToDateTimezone">
+                    <option value="local">Asia/Shanghai</option>
+                    <option value="utc">UTC</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="ts-section">
+                <div class="ts-title">📅 日期时间转时间戳</div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input" id="tsToTsInput" placeholder="如 2024-01-15 12:00:00">
+                  <select class="ts-select" id="tsToTsTimezone">
+                    <option value="local">Asia/Shanghai</option>
+                    <option value="utc">UTC</option>
+                  </select>
+                </div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input ts-result-input" id="tsToTsResult" disabled placeholder="转换结果">
+                  <select class="ts-select" id="tsToTsUnit">
+                    <option value="s">秒(s)</option>
+                    <option value="ms">毫秒(ms)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>

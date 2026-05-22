@@ -16,6 +16,7 @@ let currentTool = 'json';
 let jsonMode = 'format'; // 'format' 或 'compress'
 let currentJsonResult = ''; // 保存原始结果用于复制
 let jsonFormatTimer = null; // JSON 格式化防抖定时器
+let tsTimer = null; // 时间戳实时更新定时器
 
 // 切换工具 Tab
 function selectTool(tool) {
@@ -28,28 +29,42 @@ function selectTool(tool) {
 
   const jsonPanel = document.getElementById('jsonToolPanel');
   const generalPanel = document.getElementById('generalToolPanel');
+  const timestampPanel = document.getElementById('timestampToolPanel');
   const errorEl = document.getElementById('toolError');
   const inputGeneral = document.getElementById('toolInputGeneral');
   const outputGeneral = document.getElementById('toolOutputGeneral');
 
   errorEl.style.display = 'none';
 
+  // 停止时间戳实时更新
+  if (tsTimer) {
+    clearInterval(tsTimer);
+    tsTimer = null;
+  }
+
   // JSON 工具使用双栏布局
   if (tool === 'json') {
     jsonPanel.style.display = 'flex';
     generalPanel.style.display = 'none';
+    timestampPanel.style.display = 'none';
     document.getElementById('toolInput').value = '';
     document.getElementById('toolOutput').innerHTML = '';
 
-    // 确保输出区域初始为格式化模式样式
     const outputEl = document.getElementById('toolOutput');
     const outputWrapper = outputEl?.closest('.json-output-wrapper');
     if (outputEl) outputEl.classList.remove('compress-mode');
     if (outputWrapper) outputWrapper.classList.remove('compress-mode');
 
     setJsonMode('format');
+  } else if (tool === 'timestamp') {
+    jsonPanel.style.display = 'none';
+    generalPanel.style.display = 'none';
+    timestampPanel.style.display = 'flex';
+    startTimestampTimer();
   } else {
     jsonPanel.style.display = 'none';
+    generalPanel.style.display = 'none';
+    timestampPanel.style.display = 'none';
     generalPanel.style.display = 'flex';
     inputGeneral.value = '';
     inputGeneral.placeholder = TOOL_TITLES[tool] + '...';
@@ -154,6 +169,103 @@ function executeJsonTool() {
       currentJsonResult = '';
     }
   }, 150);
+}
+
+// 时间戳工具 - 实时更新当前时间戳
+function startTimestampTimer() {
+  updateCurrentTimestamp();
+  tsTimer = setInterval(updateCurrentTimestamp, 1000);
+}
+
+function updateCurrentTimestamp() {
+  const now = new Date();
+  const ts = Math.floor(now.getTime() / 1000);
+  document.getElementById('tsNowValue').textContent = ts;
+  document.getElementById('tsNowDate').textContent = formatDate(now);
+}
+
+// 格式化日期
+function formatDate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// 时间戳转日期
+function timestampToDate() {
+  const input = document.getElementById('tsToDateInput').value.trim();
+  const resultEl = document.getElementById('tsToDateResult');
+  const unit = document.getElementById('tsToDateUnit').value;
+  const tz = document.getElementById('tsToDateTimezone').value;
+
+  if (!input) {
+    resultEl.value = '';
+    return;
+  }
+
+  if (!/^\d+$/.test(input)) {
+    resultEl.value = '请输入有效的数字时间戳';
+    return;
+  }
+
+  const ts = parseInt(input);
+  const ms = unit === 'ms' ? ts : ts * 1000;
+  const d = new Date(ms);
+
+  if (isNaN(d.getTime())) {
+    resultEl.value = '无效的时间戳';
+    return;
+  }
+
+  if (tz === 'utc') {
+    const pad = n => String(n).padStart(2, '0');
+    resultEl.value = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  } else {
+    resultEl.value = formatDate(d);
+  }
+}
+
+// 日期转时间戳
+function dateToTimestamp() {
+  const input = document.getElementById('tsToTsInput').value.trim();
+  const resultEl = document.getElementById('tsToTsResult');
+  const unit = document.getElementById('tsToTsUnit').value;
+  const tz = document.getElementById('tsToTsTimezone').value;
+
+  if (!input) {
+    resultEl.value = '';
+    return;
+  }
+
+  let d;
+  if (tz === 'utc') {
+    // 把输入当作 UTC 时间解析
+    d = new Date(input + 'Z');
+  } else {
+    d = new Date(input);
+  }
+
+  if (isNaN(d.getTime())) {
+    resultEl.value = '无效的日期格式';
+    return;
+  }
+
+  if (unit === 'ms') {
+    resultEl.value = String(d.getTime());
+  } else {
+    resultEl.value = String(Math.floor(d.getTime() / 1000));
+  }
+}
+
+// 使用当前时间填充
+function useNowDate() {
+  document.getElementById('tsToTsInput').value = formatDate(new Date());
+  dateToTimestamp();
+}
+
+// 复制当前时间戳
+function copyCurrentTimestamp() {
+  const ts = document.getElementById('tsNowValue').textContent;
+  navigator.clipboard.writeText(ts).then(() => showCopyToast());
 }
 
 // 执行工具
@@ -280,6 +392,10 @@ window.LinkHubTools = {
   executeTool,
   copyToolResult,
   clearTool,
+  timestampToDate,
+  dateToTimestamp,
+  useNowDate,
+  copyCurrentTimestamp,
   get currentTool() { return currentTool; }
 };
 
@@ -294,6 +410,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // 时间戳输入实时转换
+  const tsToDateInput = document.getElementById('tsToDateInput');
+  if (tsToDateInput) {
+    tsToDateInput.addEventListener('input', () => timestampToDate());
+  }
+  const tsToTsInput = document.getElementById('tsToTsInput');
+  if (tsToTsInput) {
+    tsToTsInput.addEventListener('input', () => dateToTimestamp());
+  }
+
+  // 下拉选择变化时重新转换
+  ['tsToDateUnit', 'tsToDateTimezone', 'tsToTsTimezone', 'tsToTsUnit'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', () => {
+        if (id.startsWith('tsToDate')) timestampToDate();
+        else dateToTimestamp();
+      });
+    }
+  });
   
   // 初始化默认工具
   selectTool('json');

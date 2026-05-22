@@ -238,6 +238,9 @@ function setupEventListeners() {
       case 'clear-tool':
         window.LinkHubTools?.clearTool();
         break;
+      case 'copy-ts-now':
+        window.LinkHubTools?.copyCurrentTimestamp();
+        break;
       case 'set-json-mode':
         window.LinkHubTools?.setJsonMode(actionTarget.dataset.mode);
         break;

@@ -2341,3 +2341,130 @@ body {
   color: var(--text-light);
   font-size: 14px;
 }
+
+/* 时间戳工具 */
+#timestampToolPanel {
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+}
+
+.ts-columns {
+  display: flex;
+  gap: 24px;
+}
+
+.ts-columns .ts-section {
+  flex: 1;
+}
+
+.ts-section {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+
+.ts-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-label {
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.ts-now-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ts-now-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--primary);
+  font-family: 'Courier New', monospace;
+}
+
+.ts-now-date {
+  font-size: 14px;
+  color: var(--text-medium);
+}
+
+.ts-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.ts-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ts-row:last-child {
+  margin-bottom: 0;
+}
+
+.ts-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  outline: none;
+  transition: var(--transition);
+  font-family: 'Courier New', monospace;
+}
+
+.ts-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.ts-result-input {
+  background: #eef2f7;
+  color: var(--text);
+  cursor: default;
+}
+
+.ts-result-input:disabled {
+  opacity: 1;
+  background: #eef2f7;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+}
+
+.ts-select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: var(--white);
+  cursor: pointer;
+  outline: none;
+  min-width: 120px;
+}
+
+.ts-select:focus {
+  border-color: var(--primary);
+}
+
+.ts-error {
+  color: #e53e3e;
+  font-size: 13px;
+}
+
+.btn-sm {
+  padding: 10px 16px;
+  font-size: 13px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
