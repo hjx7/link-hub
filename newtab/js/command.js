@@ -28,6 +28,8 @@ function getBuiltinCommands() {
     { type: CMD_TYPE.TOOL, icon: '01', title: 'Base64 编解码', desc: '打开 Base64 工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('base64'); } },
     { type: CMD_TYPE.TOOL, icon: '🎨', title: '颜色转换', desc: '打开颜色工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('color'); } },
     { type: CMD_TYPE.TOOL, icon: '🎲', title: 'UUID 生成', desc: '打开 UUID 工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('uuid'); } },
+    { type: CMD_TYPE.TOOL, icon: '📋', title: 'Cron 表达式', desc: '打开 Cron 解析工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('cron'); } },
+    { type: CMD_TYPE.TOOL, icon: '.*', title: '正则表达式', desc: '打开正则测试工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('regex'); } },
   ];
 }
 

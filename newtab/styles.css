@@ -2468,3 +2468,458 @@ body {
   border-radius: var(--radius);
   white-space: nowrap;
 }
+
+/* Cron 工具 */
+#cronToolPanel {
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+}
+
+.cron-section {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+
+.cron-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.cron-input-row {
+  margin-bottom: 12px;
+}
+
+.cron-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  transition: var(--transition);
+}
+
+.cron-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.cron-desc {
+  margin-bottom: 16px;
+}
+
+.cron-desc-text {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.cron-error {
+  color: #e53e3e;
+  font-size: 13px;
+}
+
+.cron-next-title {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 8px;
+}
+
+.cron-next-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cron-next-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-light);
+}
+
+.cron-next-idx {
+  font-size: 12px;
+  color: var(--text-light);
+  width: 20px;
+  text-align: center;
+}
+
+.cron-next-time {
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: var(--text);
+}
+
+/* Cron 参考表达式 */
+.cron-ref-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cron-ref-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--bg-light);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.cron-ref-item:hover {
+  background: var(--primary-light);
+}
+
+.cron-ref-item code {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: var(--primary);
+  background: var(--white);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cron-ref-item span {
+  font-size: 13px;
+  color: var(--text-medium);
+}
+
+/* 正则表达式工具 */
+#regexToolPanel {
+  flex-direction: column;
+  padding: 0;
+  height: 100%;
+}
+
+.regex-editor {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.regex-input-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.regex-ref-section {
+  width: 280px;
+  flex-shrink: 0;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--bg-light);
+}
+
+.regex-field {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+}
+
+.regex-field:last-child {
+  border-bottom: none;
+  flex: 1;
+  overflow: hidden;
+}
+
+.regex-field.regex-field-grow {
+  flex: 1;
+  overflow: hidden;
+}
+
+.regex-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-light);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.regex-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  transition: var(--transition);
+}
+
+.regex-input-row:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.regex-slash {
+  font-size: 15px;
+  color: var(--text-light);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.regex-highlight-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.regex-highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 4px;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  white-space: pre;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.regex-input {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  padding: 8px 4px;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--text);
+}
+
+.regex-flags {
+  width: 36px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  padding: 8px 4px;
+  color: var(--primary);
+  background: transparent;
+  text-align: center;
+}
+
+.regex-textarea {
+  width: 100%;
+  flex: 1;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  outline: none;
+  resize: none;
+  background: transparent;
+  margin-top: 4px;
+  transition: var(--transition);
+  line-height: 1.5;
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--text);
+}
+
+.regex-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.regex-test-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  margin-top: 4px;
+  min-height: 60px;
+}
+
+.regex-test-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  pointer-events: none;
+  overflow: auto;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+.regex-result {
+  flex: 1;
+  padding: 0;
+  background: var(--bg-light);
+  border-radius: var(--radius);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow: auto;
+  margin-top: 4px;
+}
+
+.regex-hint {
+  color: var(--text-light);
+  padding: 12px;
+  display: block;
+}
+
+.regex-no-match {
+  color: var(--text-light);
+  padding: 12px;
+  display: block;
+}
+
+.regex-error {
+  color: #e53e3e;
+  padding: 12px;
+  display: block;
+}
+
+.regex-match-table {
+  width: 100%;
+}
+
+.regex-match-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+
+.regex-match-row:last-child {
+  border-bottom: none;
+}
+
+.regex-group-row {
+  padding-left: 28px;
+}
+
+.regex-match-label {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--text);
+  border-bottom: 2px solid;
+  padding-bottom: 2px;
+  min-width: 70px;
+}
+
+.regex-match-pos {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--text-light);
+  min-width: 50px;
+}
+
+.regex-match-value {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  word-break: break-all;
+}
+
+.regex-match-summary {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-light);
+  border-top: 1px solid var(--border);
+}
+
+/* 正则参考 */
+.regex-ref-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.regex-ref-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.regex-ref-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.regex-ref-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-medium);
+  margin-bottom: 2px;
+}
+
+.regex-ref-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.regex-ref-item code {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 1px 6px;
+  border-radius: 3px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.regex-ref-item span {
+  font-size: 12px;
+  color: var(--text-medium);
+}
+
+/* 正则高亮 */
+.rh-group { color: #2b7bd0; font-weight: 600; }
+.rh-group-2 { color: #e8a027; font-weight: 600; }
+.rh-group-3 { color: #28a745; font-weight: 600; }
+.rh-quantifier { color: #e8a027; font-weight: 600; }
+.rh-charset { color: #6f42c1; font-weight: 600; }
+.rh-anchor { color: #e53e3e; font-weight: 600; }
+.rh-escape { color: #2b7bd0; }
+.rh-alternation { color: #e53e3e; font-weight: 700; }
+.rh-paren { color: #2b7bd0; font-weight: 700; }
+.rh-error { color: #e53e3e; }
+
+/* 测试字符串匹配高亮 */
+.rh-match { background: #bfdbfe; border-radius: 2px; padding: 1px 0; }
+.rh-match-1 { background: #bfdbfe; border-radius: 2px; padding: 1px 0; }
+.rh-match-2 { background: #fde68a; border-radius: 2px; padding: 1px 0; }
+.rh-match-3 { background: #bbf7d0; border-radius: 2px; padding: 1px 0; }
+.rh-match-4 { background: #e9d5ff; border-radius: 2px; padding: 1px 0; }
+.rh-match-5 { background: #fecdd3; border-radius: 2px; padding: 1px 0; }
+.rh-match-6 { background: #a5f3fc; border-radius: 2px; padding: 1px 0; }
+.rh-match-7 { background: #d9f99d; border-radius: 2px; padding: 1px 0; }
+.rh-match-sep { display: none; }

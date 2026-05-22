@@ -91,6 +91,14 @@
             <span class="tab-icon">⏰</span>
             <span class="tab-text">时间戳</span>
           </button>
+          <button class="tools-tab" data-action="tool" data-tool="cron">
+            <span class="tab-icon">📋</span>
+            <span class="tab-text">Cron</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="regex">
+            <span class="tab-icon">.*</span>
+            <span class="tab-text">正则</span>
+          </button>
           <button class="tools-tab" data-action="tool" data-tool="url">
             <span class="tab-icon">🔗</span>
             <span class="tab-text">URL</span>
@@ -198,6 +206,104 @@
                     <option value="s">秒(s)</option>
                     <option value="ms">毫秒(ms)</option>
                   </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cron 工具专用面板 -->
+          <div class="tool-panel" id="cronToolPanel" style="display: none;">
+            <div class="cron-section">
+              <div class="cron-title">Cron 表达式解析</div>
+              <div class="cron-input-row">
+                <input type="text" class="cron-input" id="cronInput" placeholder="如 0 30 9 * * ? （秒 分 时 日 月 周）">
+              </div>
+              <div class="cron-desc" id="cronDesc"></div>
+              <div class="cron-next-title">接下来 10 次执行时间：</div>
+              <div class="cron-next-list" id="cronNextList"></div>
+            </div>
+
+            <div class="cron-section">
+              <div class="cron-title">常用表达式参考</div>
+              <div class="cron-ref-list">
+                <div class="cron-ref-item" data-cron="0 0/5 * * * ?"><code>0 0/5 * * * ?</code><span>每5分钟</span></div>
+                <div class="cron-ref-item" data-cron="0 0 * * * ?"><code>0 0 * * * ?</code><span>每小时整点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 9 * * ?"><code>0 0 9 * * ?</code><span>每天9点</span></div>
+                <div class="cron-ref-item" data-cron="0 30 9 * * 1-5"><code>0 30 9 * * 1-5</code><span>工作日9:30</span></div>
+                <div class="cron-ref-item" data-cron="0 0 0 1 * ?"><code>0 0 0 1 * ?</code><span>每月1号0点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 0 * * 1"><code>0 0 0 * * 1</code><span>每周一0点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 12 * * ?"><code>0 0 12 * * ?</code><span>每天中午12点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 0 1 1 ?"><code>0 0 0 1 1 ?</code><span>每年1月1号0点</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 正则表达式工具专用面板 -->
+          <div class="tool-panel" id="regexToolPanel" style="display: none;">
+            <div class="regex-editor">
+              <div class="regex-input-section">
+                <div class="regex-field">
+                  <label class="regex-label">正则表达式</label>
+                  <div class="regex-input-row">
+                    <span class="regex-slash">/</span>
+                    <div class="regex-highlight-wrapper">
+                      <div class="regex-highlight-layer" id="regexHighlight"></div>
+                      <input type="text" class="regex-input" id="regexPattern" placeholder="输入正则表达式" spellcheck="false">
+                    </div>
+                    <span class="regex-slash">/</span>
+                    <input type="text" class="regex-flags" id="regexFlags" value="g" placeholder="flags" spellcheck="false">
+                  </div>
+                </div>
+                <div class="regex-field regex-field-grow">
+                  <label class="regex-label">测试字符串</label>
+                  <div class="regex-test-wrapper">
+                    <div class="regex-test-highlight" id="regexTestHighlight"></div>
+                    <textarea class="regex-textarea" id="regexTestStr" placeholder="输入要匹配的文本..." spellcheck="false"></textarea>
+                  </div>
+                </div>
+                <div class="regex-field regex-field-grow">
+                  <label class="regex-label">匹配结果</label>
+                  <div class="regex-result" id="regexResult"></div>
+                </div>
+              </div>
+
+              <div class="regex-ref-section">
+                <div class="regex-ref-title">常用正则语法</div>
+                <div class="regex-ref-grid">
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">字符类</div>
+                    <div class="regex-ref-item"><code>.</code><span>任意字符</span></div>
+                    <div class="regex-ref-item"><code>\d</code><span>数字 [0-9]</span></div>
+                    <div class="regex-ref-item"><code>\w</code><span>字母数字下划线</span></div>
+                    <div class="regex-ref-item"><code>\s</code><span>空白字符</span></div>
+                    <div class="regex-ref-item"><code>[abc]</code><span>字符集合</span></div>
+                    <div class="regex-ref-item"><code>[^abc]</code><span>取反字符集</span></div>
+                  </div>
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">量词</div>
+                    <div class="regex-ref-item"><code>*</code><span>0 次或多次</span></div>
+                    <div class="regex-ref-item"><code>+</code><span>1 次或多次</span></div>
+                    <div class="regex-ref-item"><code>?</code><span>0 次或 1 次</span></div>
+                    <div class="regex-ref-item"><code>{n}</code><span>恰好 n 次</span></div>
+                    <div class="regex-ref-item"><code>{n,m}</code><span>n 到 m 次</span></div>
+                    <div class="regex-ref-item"><code>{n,}</code><span>至少 n 次</span></div>
+                  </div>
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">定位与分组</div>
+                    <div class="regex-ref-item"><code>^</code><span>行首</span></div>
+                    <div class="regex-ref-item"><code>$</code><span>行尾</span></div>
+                    <div class="regex-ref-item"><code>\b</code><span>单词边界</span></div>
+                    <div class="regex-ref-item"><code>(abc)</code><span>捕获分组</span></div>
+                    <div class="regex-ref-item"><code>(?:abc)</code><span>非捕获分组</span></div>
+                    <div class="regex-ref-item"><code>a|b</code><span>或</span></div>
+                  </div>
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">标志 (flags)</div>
+                    <div class="regex-ref-item"><code>g</code><span>全局匹配</span></div>
+                    <div class="regex-ref-item"><code>i</code><span>忽略大小写</span></div>
+                    <div class="regex-ref-item"><code>m</code><span>多行模式</span></div>
+                    <div class="regex-ref-item"><code>s</code><span>. 匹配换行</span></div>
+                  </div>
                 </div>
               </div>
             </div>
