@@ -3,7 +3,7 @@
  */
 
 // 状态
-let currentPage = 'search';
+let currentPage = 'sites';
 
 // DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -39,21 +39,6 @@ function setupEventListeners() {
   // 导航切换
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => switchPage(item.dataset.page));
-  });
-  
-  // 搜索输入
-  const mainSearch = document.getElementById('mainSearchInput');
-  mainSearch.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') window.LinkHubSearch?.performMainSearch();
-  });
-
-  // 点击外部关闭搜索引擎下拉
-  document.addEventListener('click', (e) => {
-    const dropdown = document.getElementById('engineDropdown');
-    const btn = document.getElementById('searchEngineBtn');
-    if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.style.display = 'none';
-    }
   });
   
   // 书签筛选
@@ -162,16 +147,6 @@ function setupEventListeners() {
     if (!action) return;
     
     switch (action) {
-      // 搜索
-      case 'search':
-        window.LinkHubSearch?.performMainSearch();
-        break;
-      case 'toggle-engine':
-        window.LinkHubSearch?.toggleEngineDropdown();
-        break;
-      case 'select-engine':
-        window.LinkHubSearch?.selectEngine(actionTarget.dataset.engine);
-        break;
       // 书签 - 增删改查
       case 'open-add':
         window.LinkHubBookmarks?.openAddBookmark();
@@ -271,7 +246,6 @@ function switchPage(page) {
 // 渲染
 function render() {
   switch (currentPage) {
-    case 'search':
     case 'sites':
       window.LinkHubSites?.renderSites();
       break;

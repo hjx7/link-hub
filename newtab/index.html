@@ -18,11 +18,7 @@
       </div>
       
       <nav class="sidebar-nav">
-        <button class="nav-item active" data-page="search">
-          <span class="nav-icon">🔍</span>
-          <span class="nav-text">搜索</span>
-        </button>
-        <button class="nav-item" data-page="sites">
+        <button class="nav-item active" data-page="sites">
           <span class="nav-icon">🌐</span>
           <span class="nav-text">常用网站</span>
         </button>
@@ -39,41 +35,8 @@
     
     <!-- 主内容区 -->
     <main class="main-content">
-      <!-- 快速搜索页 -->
-      <div class="page active" id="page-search">
-        <div class="search-hero">
-          <div class="logo-large">
-            <div class="logo-icon">🔗</div>
-            <span class="logo-text">LinkHub</span>
-          </div>
-        </div>
-        
-        <div class="search-container">
-          <div class="search-box">
-            <button class="search-engine-btn" id="searchEngineBtn" data-action="toggle-engine" title="切换搜索引擎">
-              <span class="engine-icon" id="engineIcon">🔍</span>
-            </button>
-            <input type="text" id="mainSearchInput" placeholder="搜索网页..." autocomplete="off">
-            <button class="search-btn" data-action="search">搜索</button>
-          </div>
-          <div class="search-engine-dropdown" id="engineDropdown" style="display:none;">
-            <button class="engine-option active" data-engine="baidu" data-action="select-engine">
-              <span class="engine-option-icon">🅱</span> 百度
-            </button>
-            <button class="engine-option" data-engine="bing" data-action="select-engine">
-              <span class="engine-option-icon">Ⓑ</span> Bing
-            </button>
-            <button class="engine-option" data-engine="google" data-action="select-engine">
-              <span class="engine-option-icon">🇬</span> Google
-            </button>
-          </div>
-        </div>
-        
-        <div class="search-results" id="searchResults"></div>
-      </div>
-      
       <!-- 常用网站页 -->
-      <div class="page" id="page-sites">
+      <div class="page active" id="page-sites">
         <div class="page-header">
           <h2>常用网站</h2>
         </div>
@@ -265,14 +228,26 @@
     </div>
   </div>
 
+  <!-- 快捷命令面板 -->
+  <div class="command-palette-overlay" id="commandPalette" style="display:none;">
+    <div class="command-palette">
+      <div class="command-input-wrapper">
+        <span class="command-input-icon">⌘</span>
+        <input type="text" id="commandInput" placeholder="输入命令或关键词..." autocomplete="off">
+        <span class="command-input-hint">ESC 关闭</span>
+      </div>
+      <div class="command-list" id="commandList"></div>
+    </div>
+  </div>
+
   <!-- JS 模块（按依赖顺序引入） -->
   <script src="js/utils.js"></script>
   <script src="js/data.js"></script>
 
-  <script src="js/search.js"></script>
   <script src="js/sites.js"></script>
   <script src="js/bookmarks.js"></script>
   <script src="js/tools.js"></script>
+  <script src="js/command.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

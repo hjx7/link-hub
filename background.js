@@ -500,3 +500,8 @@ try {
 chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html') });
 });
+
+// 浏览器启动时自动打开 LinkHub 标签页
+chrome.runtime.onStartup.addListener(() => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html') });
+});

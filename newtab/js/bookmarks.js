@@ -9,7 +9,7 @@ let _chromeBookmarkTree = null;
 let _currentFilter = '';
 let _pendingDeleteId = null;
 let _pendingDeleteType = null;
-let _selectedFolderId = '1'; // 默认选中书签栏
+let _selectedFolderId = null; // 首次加载时自动选中第一个文件夹
 let _expandedFolders = new Set(); // 跟踪展开的文件夹
 let _initialExpandDone = false; // 标记初始展开是否完成
 
@@ -731,6 +731,17 @@ async function renderBookmarks() {
       </div>
     `;
     return;
+  }
+  
+  // 默认选中第一个文件夹（如果有子文件夹则选中第一个子文件夹）
+  if (!_selectedFolderId || !findBookmarkNode(_chromeBookmarkTree, _selectedFolderId)) {
+    const root = _chromeBookmarkTree.find(n => n.id === '0' || n.title === '');
+    if (root && root.children && root.children.length > 0) {
+      const firstFolder = root.children[0];
+      // 如果第一个文件夹有子文件夹，选中第一个子文件夹
+      const firstChild = firstFolder.children && firstFolder.children.find(c => c.children);
+      _selectedFolderId = firstChild ? firstChild.id : firstFolder.id;
+    }
   }
   
   // 渲染左侧文件夹树
@@ -1718,7 +1729,8 @@ window.LinkHubBookmarks = {
   handleTreeDragOver,
   handleTreeDragLeave,
   handleTreeDrop,
-  handleTreeDragEnd
+  handleTreeDragEnd,
+  _getBookmarkTree: () => _chromeBookmarkTree
 };
 
 // 初始化分隔条拖动功能
