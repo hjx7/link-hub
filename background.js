@@ -59,6 +59,13 @@ function detectDefaultFolderType(title) {
 // 消息处理
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const handlers = {
+    // 打开 LinkHub 页面（从命令面板调用）
+    async openLinkHub(data) {
+      const page = data || 'sites';
+      await chrome.tabs.create({ url: chrome.runtime.getURL(`newtab/index.html#${page}`) });
+      return true;
+    },
+
     // 获取Chrome原生书签树
     async getBookmarkTree() {
       return await chrome.bookmarks.getTree();
@@ -505,3 +512,4 @@ chrome.action.onClicked.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('newtab/index.html') });
 });
+

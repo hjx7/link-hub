@@ -7,9 +7,29 @@ let currentPage = 'sites';
 
 // DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
+  // 检查 URL hash 参数（从命令面板跳转）
+  const hash = window.location.hash.slice(1);
+  if (hash) {
+    if (hash.startsWith('tools:')) {
+      currentPage = 'tools';
+      const tool = hash.split(':')[1];
+      setTimeout(() => window.LinkHubTools?.selectTool(tool), 100);
+    } else if (['sites', 'bookmarks', 'tools'].includes(hash)) {
+      currentPage = hash;
+    }
+  }
+
   setupEventListeners();
   setupBookmarkSync();
   render();
+
+  // 更新导航状态
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.page === currentPage);
+  });
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === `page-${currentPage}`);
+  });
 });
 
 // 监听浏览器书签变更（同步）
