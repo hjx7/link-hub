@@ -2923,3 +2923,232 @@ body {
 .rh-match-6 { background: #a5f3fc; border-radius: 2px; padding: 1px 0; }
 .rh-match-7 { background: #d9f99d; border-radius: 2px; padding: 1px 0; }
 .rh-match-sep { display: none; }
+
+/* URL 编解码工具 */
+#urlToolPanel {
+  flex-direction: column;
+  padding: 24px;
+  height: 100%;
+}
+
+.url-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+}
+
+.url-textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  outline: none;
+  resize: none;
+  line-height: 1.5;
+  transition: var(--transition);
+}
+
+.url-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.url-result-textarea {
+  background: #eef2f7;
+}
+
+.url-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-danger-outline {
+  padding: 10px 16px;
+  font-size: 13px;
+  border-radius: var(--radius);
+  border: 1px solid #e53e3e;
+  background: transparent;
+  color: #e53e3e;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.btn-danger-outline:hover {
+  background: #fef2f2;
+}
+
+/* JWT 解析工具 */
+#jwtToolPanel {
+  flex-direction: column;
+  padding: 24px;
+  height: 100%;
+}
+
+.jwt-section {
+  display: flex;
+  gap: 24px;
+  height: 100%;
+}
+
+.jwt-input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.jwt-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.jwt-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  outline: none;
+  resize: none;
+  line-height: 1.5;
+  word-break: break-all;
+  transition: var(--transition);
+}
+
+.jwt-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.jwt-result-area {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jwt-placeholder {
+  color: var(--text-light);
+  font-size: 14px;
+  padding: 20px;
+  text-align: center;
+}
+
+.jwt-error {
+  color: #e53e3e;
+  font-size: 13px;
+  padding: 12px;
+}
+
+.jwt-part {
+  background: var(--bg-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.jwt-part-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.jwt-part-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.jwt-header-color { background: #e53e3e; }
+.jwt-payload-color { background: #7c3aed; }
+.jwt-signature-color { background: #2563eb; }
+
+.jwt-part-alg {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.jwt-part-content {
+  padding: 10px 12px;
+  margin: 0;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+}
+
+.jwt-signature {
+  color: var(--text-light);
+  font-size: 11px;
+}
+
+.jwt-time-hint {
+  padding: 4px 12px 8px;
+  font-size: 12px;
+  color: var(--text-medium);
+}
+
+/* 哈希工具 */
+#hashToolPanel {
+  flex-direction: column;
+  padding: 24px;
+  height: 100%;
+}
+
+.hash-results {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.hash-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #eef2f7;
+  border-radius: var(--radius);
+}
+
+.hash-result-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-medium);
+  min-width: 60px;
+}
+
+.hash-result-value {
+  flex: 1;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  color: var(--text);
+  word-break: break-all;
+  background: transparent;
+  padding: 0;
+}
+
+.hash-copy-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}

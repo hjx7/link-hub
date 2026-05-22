@@ -10,8 +10,8 @@ const TOOL_TITLES = {
   regex: '正则表达式',
   url: 'URL 编解码',
   base64: 'Base64 编解码',
-  color: '颜色转换',
-  uuid: 'UUID 生成'
+  jwt: 'JWT 解析',
+  hash: 'MD5/SHA 哈希'
 };
 
 let currentTool = 'json';
@@ -52,6 +52,10 @@ function selectTool(tool) {
   cronPanel.style.display = 'none';
   const regexPanel = document.getElementById('regexToolPanel');
   regexPanel.style.display = 'none';
+  document.getElementById('urlToolPanel').style.display = 'none';
+  document.getElementById('base64ToolPanel').style.display = 'none';
+  document.getElementById('jwtToolPanel').style.display = 'none';
+  document.getElementById('hashToolPanel').style.display = 'none';
 
   // JSON 工具使用双栏布局
   if (tool === 'json') {
@@ -72,6 +76,15 @@ function selectTool(tool) {
     cronPanel.style.display = 'flex';
   } else if (tool === 'regex') {
     regexPanel.style.display = 'flex';
+  } else if (tool === 'url') {
+    const urlPanel = document.getElementById('urlToolPanel');
+    urlPanel.style.display = 'flex';
+  } else if (tool === 'base64') {
+    document.getElementById('base64ToolPanel').style.display = 'flex';
+  } else if (tool === 'jwt') {
+    document.getElementById('jwtToolPanel').style.display = 'flex';
+  } else if (tool === 'hash') {
+    document.getElementById('hashToolPanel').style.display = 'flex';
   } else {
     generalPanel.style.display = 'flex';
     inputGeneral.value = '';
@@ -712,6 +725,269 @@ function testRegex() {
   }
 }
 
+// URL 编解码
+function urlEncode() {
+  const input = document.getElementById('urlInput').value;
+  document.getElementById('urlOutput').value = encodeURIComponent(input);
+}
+
+function urlDecode() {
+  const input = document.getElementById('urlInput').value;
+  try {
+    document.getElementById('urlOutput').value = decodeURIComponent(input);
+  } catch (e) {
+    document.getElementById('urlOutput').value = '解码失败: ' + e.message;
+  }
+}
+
+function urlSwap() {
+  const input = document.getElementById('urlInput');
+  const output = document.getElementById('urlOutput');
+  const temp = output.value;
+  input.value = temp;
+  output.value = '';
+}
+
+function urlClear() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('urlOutput').value = '';
+}
+
+// Base64 编解码
+function base64Encode() {
+  const input = document.getElementById('base64Input').value;
+  try {
+    document.getElementById('base64Output').value = btoa(unescape(encodeURIComponent(input)));
+  } catch (e) {
+    document.getElementById('base64Output').value = '编码失败: ' + e.message;
+  }
+}
+
+function base64Decode() {
+  const input = document.getElementById('base64Input').value;
+  try {
+    document.getElementById('base64Output').value = decodeURIComponent(escape(atob(input)));
+  } catch (e) {
+    document.getElementById('base64Output').value = '解码失败: ' + e.message;
+  }
+}
+
+function base64Swap() {
+  const input = document.getElementById('base64Input');
+  const output = document.getElementById('base64Output');
+  const temp = output.value;
+  input.value = temp;
+  output.value = '';
+}
+
+function base64Clear() {
+  document.getElementById('base64Input').value = '';
+  document.getElementById('base64Output').value = '';
+}
+
+// JWT 解析
+function parseJwt() {
+  const input = document.getElementById('jwtInput').value.trim();
+  const resultEl = document.getElementById('jwtResult');
+
+  if (!input) {
+    resultEl.innerHTML = '<div class="jwt-placeholder">粘贴 JWT Token 后自动解析</div>';
+    return;
+  }
+
+  const parts = input.split('.');
+  if (parts.length !== 3) {
+    resultEl.innerHTML = '<div class="jwt-error">无效的 JWT 格式（需要 3 段由 . 分隔）</div>';
+    return;
+  }
+
+  // Base64URL 解码（支持 UTF-8）
+  function decodeBase64Url(str) {
+    // 补齐 padding
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = str.length % 4;
+    if (pad) str += '='.repeat(4 - pad);
+    // 解码为字节数组再转 UTF-8
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  try {
+    const header = JSON.parse(decodeBase64Url(parts[0]));
+    const payload = JSON.parse(decodeBase64Url(parts[1]));
+
+    // 处理时间字段
+    const timeFields = ['exp', 'iat', 'nbf'];
+    let payloadExtra = '';
+    for (const field of timeFields) {
+      if (payload[field]) {
+        const d = new Date(payload[field] * 1000);
+        payloadExtra += `<div class="jwt-time-hint">${field}: ${d.toLocaleString('zh-CN')}${field === 'exp' ? (d < new Date() ? ' (已过期)' : ' (有效)') : ''}</div>`;
+      }
+    }
+
+    resultEl.innerHTML = `
+      <div class="jwt-part">
+        <div class="jwt-part-header">
+          <span class="jwt-part-label jwt-header-color">HEADER</span>
+          <span class="jwt-part-alg">${escapeHtml(header.alg || '')}</span>
+        </div>
+        <pre class="jwt-part-content">${escapeHtml(JSON.stringify(header, null, 2))}</pre>
+      </div>
+      <div class="jwt-part">
+        <div class="jwt-part-header">
+          <span class="jwt-part-label jwt-payload-color">PAYLOAD</span>
+        </div>
+        <pre class="jwt-part-content">${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
+        ${payloadExtra}
+      </div>
+      <div class="jwt-part">
+        <div class="jwt-part-header">
+          <span class="jwt-part-label jwt-signature-color">SIGNATURE</span>
+        </div>
+        <pre class="jwt-part-content jwt-signature">${escapeHtml(parts[2])}</pre>
+      </div>
+    `;
+  } catch (e) {
+    resultEl.innerHTML = `<div class="jwt-error">解析失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// MD5/SHA 哈希 - 计算所有哈希值
+async function computeAllHashes() {
+  const input = document.getElementById('hashInput').value;
+  const outputEl = document.getElementById('hashOutput');
+
+  if (!input) {
+    outputEl.innerHTML = '';
+    return;
+  }
+
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+
+    // MD5
+    const md5Hash = md5(input);
+
+    // SHA-1, SHA-256, SHA-512
+    const [sha1Buf, sha256Buf, sha512Buf] = await Promise.all([
+      crypto.subtle.digest('SHA-1', data),
+      crypto.subtle.digest('SHA-256', data),
+      crypto.subtle.digest('SHA-512', data)
+    ]);
+
+    const toHex = buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    outputEl.innerHTML = `
+      <div class="hash-result-item">
+        <span class="hash-result-label">MD5</span>
+        <code class="hash-result-value">${md5Hash}</code>
+        <button class="btn btn-sm btn-secondary hash-copy-btn" data-action="copy-hash" data-hash="${md5Hash}">复制</button>
+      </div>
+      <div class="hash-result-item">
+        <span class="hash-result-label">SHA-1</span>
+        <code class="hash-result-value">${toHex(sha1Buf)}</code>
+        <button class="btn btn-sm btn-secondary hash-copy-btn" data-action="copy-hash" data-hash="${toHex(sha1Buf)}">复制</button>
+      </div>
+      <div class="hash-result-item">
+        <span class="hash-result-label">SHA-256</span>
+        <code class="hash-result-value">${toHex(sha256Buf)}</code>
+        <button class="btn btn-sm btn-secondary hash-copy-btn" data-action="copy-hash" data-hash="${toHex(sha256Buf)}">复制</button>
+      </div>
+      <div class="hash-result-item">
+        <span class="hash-result-label">SHA-512</span>
+        <code class="hash-result-value">${toHex(sha512Buf)}</code>
+        <button class="btn btn-sm btn-secondary hash-copy-btn" data-action="copy-hash" data-hash="${toHex(sha512Buf)}">复制</button>
+      </div>
+    `;
+  } catch (e) {
+    outputEl.innerHTML = `<div class="jwt-error">计算失败: ${e.message}</div>`;
+  }
+}
+
+function hashClear() {
+  document.getElementById('hashInput').value = '';
+  document.getElementById('hashOutput').innerHTML = '';
+}
+
+function copyHash(hash) {
+  navigator.clipboard.writeText(hash).then(() => showCopyToast());
+}
+
+// MD5 纯 JS 实现
+function md5(string) {
+  function md5cycle(x, k) {
+    let a = x[0], b = x[1], c = x[2], d = x[3];
+    a = ff(a, b, c, d, k[0], 7, -680876936); d = ff(d, a, b, c, k[1], 12, -389564586);
+    c = ff(c, d, a, b, k[2], 17, 606105819); b = ff(b, c, d, a, k[3], 22, -1044525330);
+    a = ff(a, b, c, d, k[4], 7, -176418897); d = ff(d, a, b, c, k[5], 12, 1200080426);
+    c = ff(c, d, a, b, k[6], 17, -1473231341); b = ff(b, c, d, a, k[7], 22, -45705983);
+    a = ff(a, b, c, d, k[8], 7, 1770035416); d = ff(d, a, b, c, k[9], 12, -1958414417);
+    c = ff(c, d, a, b, k[10], 17, -42063); b = ff(b, c, d, a, k[11], 22, -1990404162);
+    a = ff(a, b, c, d, k[12], 7, 1804603682); d = ff(d, a, b, c, k[13], 12, -40341101);
+    c = ff(c, d, a, b, k[14], 17, -1502002290); b = ff(b, c, d, a, k[15], 22, 1236535329);
+    a = gg(a, b, c, d, k[1], 5, -165796510); d = gg(d, a, b, c, k[6], 9, -1069501632);
+    c = gg(c, d, a, b, k[11], 14, 643717713); b = gg(b, c, d, a, k[0], 20, -373897302);
+    a = gg(a, b, c, d, k[5], 5, -701558691); d = gg(d, a, b, c, k[10], 9, 38016083);
+    c = gg(c, d, a, b, k[15], 14, -660478335); b = gg(b, c, d, a, k[4], 20, -405537848);
+    a = gg(a, b, c, d, k[9], 5, 568446438); d = gg(d, a, b, c, k[14], 9, -1019803690);
+    c = gg(c, d, a, b, k[3], 14, -187363961); b = gg(b, c, d, a, k[8], 20, 1163531501);
+    a = gg(a, b, c, d, k[13], 5, -1444681467); d = gg(d, a, b, c, k[2], 9, -51403784);
+    c = gg(c, d, a, b, k[7], 14, 1735328473); b = gg(b, c, d, a, k[12], 20, -1926607734);
+    a = hh(a, b, c, d, k[5], 4, -378558); d = hh(d, a, b, c, k[8], 11, -2022574463);
+    c = hh(c, d, a, b, k[11], 16, 1839030562); b = hh(b, c, d, a, k[14], 23, -35309556);
+    a = hh(a, b, c, d, k[1], 4, -1530992060); d = hh(d, a, b, c, k[4], 11, 1272893353);
+    c = hh(c, d, a, b, k[7], 16, -155497632); b = hh(b, c, d, a, k[10], 23, -1094730640);
+    a = hh(a, b, c, d, k[13], 4, 681279174); d = hh(d, a, b, c, k[0], 11, -358537222);
+    c = hh(c, d, a, b, k[3], 16, -722521979); b = hh(b, c, d, a, k[6], 23, 76029189);
+    a = hh(a, b, c, d, k[9], 4, -640364487); d = hh(d, a, b, c, k[12], 11, -421815835);
+    c = hh(c, d, a, b, k[15], 16, 530742520); b = hh(b, c, d, a, k[2], 23, -995338651);
+    a = ii(a, b, c, d, k[0], 6, -198630844); d = ii(d, a, b, c, k[7], 10, 1126891415);
+    c = ii(c, d, a, b, k[14], 15, -1416354905); b = ii(b, c, d, a, k[5], 21, -57434055);
+    a = ii(a, b, c, d, k[12], 6, 1700485571); d = ii(d, a, b, c, k[3], 10, -1894986606);
+    c = ii(c, d, a, b, k[10], 15, -1051523); b = ii(b, c, d, a, k[1], 21, -2054922799);
+    a = ii(a, b, c, d, k[8], 6, 1873313359); d = ii(d, a, b, c, k[15], 10, -30611744);
+    c = ii(c, d, a, b, k[6], 15, -1560198380); b = ii(b, c, d, a, k[13], 21, 1309151649);
+    a = ii(a, b, c, d, k[4], 6, -145523070); d = ii(d, a, b, c, k[11], 10, -1120210379);
+    c = ii(c, d, a, b, k[2], 15, 718787259); b = ii(b, c, d, a, k[9], 21, -343485551);
+    x[0] = add32(a, x[0]); x[1] = add32(b, x[1]); x[2] = add32(c, x[2]); x[3] = add32(d, x[3]);
+  }
+  function cmn(q, a, b, x, s, t) { a = add32(add32(a, q), add32(x, t)); return add32((a << s) | (a >>> (32 - s)), b); }
+  function ff(a, b, c, d, x, s, t) { return cmn((b & c) | ((~b) & d), a, b, x, s, t); }
+  function gg(a, b, c, d, x, s, t) { return cmn((b & d) | (c & (~d)), a, b, x, s, t); }
+  function hh(a, b, c, d, x, s, t) { return cmn(b ^ c ^ d, a, b, x, s, t); }
+  function ii(a, b, c, d, x, s, t) { return cmn(c ^ (b | (~d)), a, b, x, s, t); }
+  function md51(s) {
+    const n = s.length;
+    let state = [1732584193, -271733879, -1732584194, 271733878], i;
+    for (i = 64; i <= n; i += 64) md5cycle(state, md5blk(s.substring(i - 64, i)));
+    s = s.substring(i - 64);
+    const tail = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    for (i = 0; i < s.length; i++) tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
+    tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+    if (i > 55) { md5cycle(state, tail); for (i = 0; i < 16; i++) tail[i] = 0; }
+    tail[14] = n * 8;
+    md5cycle(state, tail);
+    return state;
+  }
+  function md5blk(s) {
+    const md5blks = [];
+    for (let i = 0; i < 64; i += 4) md5blks[i >> 2] = s.charCodeAt(i) + (s.charCodeAt(i + 1) << 8) + (s.charCodeAt(i + 2) << 16) + (s.charCodeAt(i + 3) << 24);
+    return md5blks;
+  }
+  function rhex(n) { let s = ''; for (let j = 0; j < 4; j++) s += ('0' + ((n >> (j * 8 + 4)) & 0x0F).toString(16) + (n >> (j * 8) & 0x0F).toString(16)); return s; }
+  function hex(x) { for (let i = 0; i < x.length; i++) x[i] = rhex(x[i]); return x.join(''); }
+  function add32(a, b) { return (a + b) & 0xFFFFFFFF; }
+  // 处理 UTF-8
+  const utf8 = unescape(encodeURIComponent(string));
+  return hex(md51(utf8));
+}
+
 // 执行工具
 function executeTool() {
   const { rgbToHsl, generateUUID } = window.LinkHubUtils;
@@ -842,6 +1118,18 @@ window.LinkHubTools = {
   copyCurrentTimestamp,
   parseCron,
   testRegex,
+  urlEncode,
+  urlDecode,
+  urlSwap,
+  urlClear,
+  base64Encode,
+  base64Decode,
+  base64Swap,
+  base64Clear,
+  parseJwt,
+  computeAllHashes,
+  hashClear,
+  copyHash,
   get currentTool() { return currentTool; }
 };
 
@@ -920,6 +1208,18 @@ document.addEventListener('DOMContentLoaded', () => {
       hl.scrollTop = regexTestStr.scrollTop;
       hl.scrollLeft = regexTestStr.scrollLeft;
     });
+  }
+
+  // JWT 自动解析
+  const jwtInput = document.getElementById('jwtInput');
+  if (jwtInput) {
+    jwtInput.addEventListener('input', () => parseJwt());
+  }
+
+  // 哈希实时计算
+  const hashInput = document.getElementById('hashInput');
+  if (hashInput) {
+    hashInput.addEventListener('input', window.LinkHubUtils.debounce(() => computeAllHashes(), 300));
   }
   
   // 初始化默认工具

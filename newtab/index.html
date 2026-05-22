@@ -107,13 +107,13 @@
             <span class="tab-icon">01</span>
             <span class="tab-text">Base64</span>
           </button>
-          <button class="tools-tab" data-action="tool" data-tool="color">
-            <span class="tab-icon">🎨</span>
-            <span class="tab-text">颜色</span>
+          <button class="tools-tab" data-action="tool" data-tool="jwt">
+            <span class="tab-icon">🔑</span>
+            <span class="tab-text">JWT</span>
           </button>
-          <button class="tools-tab" data-action="tool" data-tool="uuid">
-            <span class="tab-icon">🎲</span>
-            <span class="tab-text">UUID</span>
+          <button class="tools-tab" data-action="tool" data-tool="hash">
+            <span class="tab-icon">#</span>
+            <span class="tab-text">哈希</span>
           </button>
         </div>
 
@@ -306,6 +306,55 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- URL 编解码工具专用面板 -->
+          <div class="tool-panel" id="urlToolPanel" style="display: none;">
+            <div class="url-section">
+              <textarea class="url-textarea" id="urlInput" placeholder="请输入需要 URL编码/解码 的文本"></textarea>
+              <div class="url-actions">
+                <button class="btn btn-primary btn-sm" data-action="url-encode">URL 编码</button>
+                <button class="btn btn-primary btn-sm" data-action="url-decode">URL 解码</button>
+                <button class="btn btn-secondary btn-sm" data-action="url-swap">↕ 交换</button>
+                <button class="btn btn-danger-outline btn-sm" data-action="url-clear">清空</button>
+              </div>
+              <textarea class="url-textarea url-result-textarea" id="urlOutput" placeholder="处理结果" readonly></textarea>
+            </div>
+          </div>
+
+          <!-- Base64 编解码工具专用面板 -->
+          <div class="tool-panel" id="base64ToolPanel" style="display: none;">
+            <div class="url-section">
+              <textarea class="url-textarea" id="base64Input" placeholder="请输入需要 Base64编码/解码 的文本"></textarea>
+              <div class="url-actions">
+                <button class="btn btn-primary btn-sm" data-action="base64-encode">Base64 编码</button>
+                <button class="btn btn-primary btn-sm" data-action="base64-decode">Base64 解码</button>
+                <button class="btn btn-secondary btn-sm" data-action="base64-swap">↕ 交换</button>
+                <button class="btn btn-danger-outline btn-sm" data-action="base64-clear">清空</button>
+              </div>
+              <textarea class="url-textarea url-result-textarea" id="base64Output" placeholder="处理结果" readonly></textarea>
+            </div>
+          </div>
+
+          <!-- JWT 解析工具面板 -->
+          <div class="tool-panel" id="jwtToolPanel" style="display: none;">
+            <div class="jwt-section">
+              <div class="jwt-input-area">
+                <label class="jwt-label">JWT Token</label>
+                <textarea class="jwt-textarea" id="jwtInput" placeholder="粘贴 JWT Token..."></textarea>
+              </div>
+              <div class="jwt-result-area" id="jwtResult">
+                <div class="jwt-placeholder">粘贴 JWT Token 后自动解析</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 哈希工具面板 -->
+          <div class="tool-panel" id="hashToolPanel" style="display: none;">
+            <div class="url-section">
+              <textarea class="url-textarea" id="hashInput" placeholder="输入要计算哈希的文本"></textarea>
+              <div class="hash-results" id="hashOutput"></div>
             </div>
           </div>
         </div>

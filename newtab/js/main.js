@@ -241,6 +241,33 @@ function setupEventListeners() {
       case 'copy-ts-now':
         window.LinkHubTools?.copyCurrentTimestamp();
         break;
+      case 'url-encode':
+        window.LinkHubTools?.urlEncode();
+        break;
+      case 'url-decode':
+        window.LinkHubTools?.urlDecode();
+        break;
+      case 'url-swap':
+        window.LinkHubTools?.urlSwap();
+        break;
+      case 'url-clear':
+        window.LinkHubTools?.urlClear();
+        break;
+      case 'base64-encode':
+        window.LinkHubTools?.base64Encode();
+        break;
+      case 'base64-decode':
+        window.LinkHubTools?.base64Decode();
+        break;
+      case 'base64-swap':
+        window.LinkHubTools?.base64Swap();
+        break;
+      case 'base64-clear':
+        window.LinkHubTools?.base64Clear();
+        break;
+      case 'copy-hash':
+        window.LinkHubTools?.copyHash(actionTarget.dataset.hash);
+        break;
       case 'set-json-mode':
         window.LinkHubTools?.setJsonMode(actionTarget.dataset.mode);
         break;
