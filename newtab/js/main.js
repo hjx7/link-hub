@@ -7,6 +7,9 @@ let currentPage = 'sites';
 
 // DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
+  // 加载主题
+  initTheme();
+
   // 检查 URL hash 参数（从命令面板跳转）
   const hash = window.location.hash.slice(1);
   if (hash) {
@@ -311,3 +314,31 @@ function render() {
 // 暴露函数到全局
 window.switchPage = switchPage;
 window.render = render;
+
+// 主题切换
+function initTheme() {
+  const saved = localStorage.getItem('linkhub-theme') || 'light';
+  applyTheme(saved);
+
+  document.getElementById('themeToggle')?.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('linkhub-theme', next);
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const icon = document.getElementById('themeIcon');
+  const text = document.getElementById('themeText');
+  if (icon && text) {
+    if (theme === 'dark') {
+      icon.textContent = '☀️';
+      text.textContent = '浅色模式';
+    } else {
+      icon.textContent = '🌙';
+      text.textContent = '深色模式';
+    }
+  }
+}

@@ -35,9 +35,9 @@
     visible = false;
   }
 
-  // 监听 Ctrl+K
+  // 监听 Alt+K
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    if (e.altKey && e.key === 'k') {
       e.preventDefault();
       e.stopPropagation();
       visible ? hide() : show();

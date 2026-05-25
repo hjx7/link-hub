@@ -14,10 +14,13 @@ const BUILTIN = [
   { icon: '🛠️', title: '实用工具', desc: '打开 LinkHub 工具页面', type: '页面', actionType: 'page', page: 'tools' },
   { icon: '{}', title: 'JSON 格式化', desc: '打开 JSON 工具', type: '工具', actionType: 'page', page: 'tools:json' },
   { icon: '⏰', title: '时间戳转换', desc: '打开时间戳工具', type: '工具', actionType: 'page', page: 'tools:timestamp' },
+  { icon: '📋', title: 'Cron 表达式', desc: '打开 Cron 解析工具', type: '工具', actionType: 'page', page: 'tools:cron' },
+  { icon: '.*', title: '正则表达式', desc: '打开正则测试工具', type: '工具', actionType: 'page', page: 'tools:regex' },
   { icon: '🔗', title: 'URL 编解码', desc: '打开 URL 工具', type: '工具', actionType: 'page', page: 'tools:url' },
   { icon: '01', title: 'Base64 编解码', desc: '打开 Base64 工具', type: '工具', actionType: 'page', page: 'tools:base64' },
-  { icon: '🎨', title: '颜色转换', desc: '打开颜色工具', type: '工具', actionType: 'page', page: 'tools:color' },
-  { icon: '🎲', title: 'UUID 生成', desc: '打开 UUID 工具', type: '工具', actionType: 'page', page: 'tools:uuid' },
+  { icon: '🔑', title: 'JWT 解析', desc: '打开 JWT 解析工具', type: '工具', actionType: 'page', page: 'tools:jwt' },
+  { icon: '#', title: 'MD5/SHA 哈希', desc: '打开哈希计算工具', type: '工具', actionType: 'page', page: 'tools:hash' },
+  { icon: '⇄', title: 'Diff 对比', desc: '打开文本对比工具', type: '工具', actionType: 'page', page: 'tools:diff' },
 ];
 
 // 加载书签

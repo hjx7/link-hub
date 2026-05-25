@@ -24,13 +24,13 @@ function getBuiltinCommands() {
     { type: CMD_TYPE.PAGE, icon: '🛠️', title: '实用工具', desc: '切换到工具页面', action: () => window.switchPage('tools') },
     { type: CMD_TYPE.TOOL, icon: '{}', title: 'JSON 格式化', desc: '打开 JSON 工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('json'); } },
     { type: CMD_TYPE.TOOL, icon: '⏰', title: '时间戳转换', desc: '打开时间戳工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('timestamp'); } },
+    { type: CMD_TYPE.TOOL, icon: '📋', title: 'Cron 表达式', desc: '打开 Cron 解析工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('cron'); } },
+    { type: CMD_TYPE.TOOL, icon: '.*', title: '正则表达式', desc: '打开正则测试工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('regex'); } },
     { type: CMD_TYPE.TOOL, icon: '🔗', title: 'URL 编解码', desc: '打开 URL 工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('url'); } },
     { type: CMD_TYPE.TOOL, icon: '01', title: 'Base64 编解码', desc: '打开 Base64 工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('base64'); } },
     { type: CMD_TYPE.TOOL, icon: '🔑', title: 'JWT 解析', desc: '打开 JWT 解析工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('jwt'); } },
     { type: CMD_TYPE.TOOL, icon: '#', title: 'MD5/SHA 哈希', desc: '打开哈希计算工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('hash'); } },
     { type: CMD_TYPE.TOOL, icon: '⇄', title: 'Diff 对比', desc: '打开文本对比工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('diff'); } },
-    { type: CMD_TYPE.TOOL, icon: '📋', title: 'Cron 表达式', desc: '打开 Cron 解析工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('cron'); } },
-    { type: CMD_TYPE.TOOL, icon: '.*', title: '正则表达式', desc: '打开正则测试工具', action: () => { window.switchPage('tools'); window.LinkHubTools?.selectTool('regex'); } },
   ];
 }
 
@@ -220,9 +220,9 @@ function handleCommandClick(e) {
 
 // 初始化
 function initCommandPalette() {
-  // 全局快捷键 Ctrl+K
+  // 全局快捷键 Alt+K
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    if (e.altKey && e.key === 'k') {
       e.preventDefault();
       if (_commandPaletteVisible) {
         hideCommandPalette();
