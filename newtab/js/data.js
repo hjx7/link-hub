@@ -23,6 +23,14 @@ const devSiteCategories = [
     ]
   },
   {
+    id: 'tools',
+    name: '工具',
+    icon: '🔧',
+    sites: [
+      { name: '百度翻译', url: 'https://fanyi.baidu.com', favicon: 'https://fanyi.baidu.com/favicon.ico' },
+    ]
+  },
+  {
     id: 'community',
     name: '社区',
     icon: '💬',

@@ -9,7 +9,7 @@
 <body>
   <div id="app">
     <!-- 左侧菜单 -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="mainSidebar">
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon">🔗</div>
@@ -29,6 +29,10 @@
         <button class="nav-item" data-page="tools">
           <span class="nav-icon">🛠️</span>
           <span class="nav-text">实用工具</span>
+        </button>
+        <button class="nav-item" data-page="terminal">
+          <span class="nav-icon">💻</span>
+          <span class="nav-text">终端</span>
         </button>
       </nav>
 
@@ -391,9 +395,87 @@
           </div>
         </div>
       </div>
+
+      <!-- 终端页 -->
+      <div class="page" id="page-terminal">
+        <div class="terminal-container">
+          <div class="terminal-tabs" id="terminalTabs">
+            <button class="terminal-sidebar-toggle" id="sidebarToggle" data-action="toggle-sidebar" title="收起/展开侧栏">☰</button>
+            <div class="terminal-tab active" data-action="switch-conn" data-id="server-list">
+              <span class="terminal-tab-name">📋</span>
+            </div>
+          </div>
+          <div class="terminal-body" id="terminalBody">
+            <!-- 服务器列表面板（固定第一个 tab） -->
+            <div class="terminal-panel active" id="serverListPanel">
+              <div class="server-list-container">
+                <div class="server-list-header">
+                  <div class="server-search-box">
+                    <span class="server-search-icon">🔍</span>
+                    <input type="text" class="server-search-input" id="serverSearchInput" placeholder="搜索名称或地址...">
+                  </div>
+                  <button class="server-add-btn" data-action="add-server" title="添加服务器">+</button>
+                </div>
+                <div class="server-list-table">
+                  <div class="server-list-thead">
+                    <span class="server-col-status"></span>
+                    <span class="server-col-name">名称</span>
+                    <span class="server-col-addr">地址</span>
+                    <span class="server-col-user">用户</span>
+                    <span class="server-col-remark">备注</span>
+                    <span class="server-col-action">操作</span>
+                  </div>
+                  <div class="terminal-server-list" id="serverList"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
   
+  <!-- 添加/编辑服务器弹窗 -->
+  <div class="modal" id="serverModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="serverModalTitle">添加服务器</span>
+        <button class="close-btn" data-action="close-server-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="serverId">
+        <div class="form-group">
+          <label>名称</label>
+          <input type="text" id="serverName" placeholder="如：生产服务器">
+        </div>
+        <div class="form-group">
+          <label>服务器地址</label>
+          <input type="text" id="serverWsUrl" placeholder="如 192.168.1.100（远程服务器 IP）">
+        </div>
+        <div class="form-group">
+          <label>SSH 端口</label>
+          <input type="number" id="serverPort" value="22" placeholder="22">
+        </div>
+        <div class="form-group">
+          <label>SSH 用户名</label>
+          <input type="text" id="serverUsername" placeholder="root">
+        </div>
+        <div class="form-group">
+          <label>SSH 密码</label>
+          <input type="password" id="serverPassword" placeholder="密码">
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <input type="text" id="serverRemark" placeholder="可选，如：生产环境、测试机等">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-action="close-server-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-server">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 添加/编辑书签弹窗 -->
   <div class="modal" id="bookmarkModal" style="display: none;">
     <div class="modal-content">
@@ -479,6 +561,11 @@
     </div>
   </div>
 
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="lib/xterm.min.css">
+  <script src="lib/xterm.min.js"></script>
+  <script src="lib/xterm-addon-fit.min.js"></script>
+
   <!-- JS 模块（按依赖顺序引入） -->
   <script src="js/utils.js"></script>
   <script src="js/data.js"></script>
@@ -486,6 +573,7 @@
   <script src="js/sites.js"></script>
   <script src="js/bookmarks.js"></script>
   <script src="js/tools.js"></script>
+  <script src="js/terminal.js"></script>
   <script src="js/command.js"></script>
   <script src="js/main.js"></script>
 </body>

@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
       currentPage = 'tools';
       const tool = hash.split(':')[1];
       setTimeout(() => window.LinkHubTools?.selectTool(tool), 100);
-    } else if (['sites', 'bookmarks', 'tools'].includes(hash)) {
+    } else if (['sites', 'bookmarks', 'tools', 'terminal'].includes(hash)) {
       currentPage = hash;
     }
   }
@@ -73,6 +73,14 @@ function setupEventListeners() {
   // 书签弹窗点击外部关闭
   document.getElementById('bookmarkModal').addEventListener('click', (e) => {
     if (e.target.id === 'bookmarkModal') window.LinkHubBookmarks?.closeModal();
+  });
+
+  // 服务器弹窗 - 不允许点击遮罩关闭（只允许按钮关闭）
+  document.getElementById('serverModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'serverModal') {
+      // 点击遮罩层，不做任何操作
+      e.stopPropagation();
+    }
   });
   
   // 确认弹窗点击外部关闭
@@ -274,6 +282,43 @@ function setupEventListeners() {
       case 'set-json-mode':
         window.LinkHubTools?.setJsonMode(actionTarget.dataset.mode);
         break;
+      // 终端
+      case 'add-server':
+        window.LinkHubTerminal?.openAddServer();
+        break;
+      case 'edit-server':
+        window.LinkHubTerminal?.openEditServer(actionTarget.dataset.id);
+        break;
+      case 'delete-server':
+        window.LinkHubTerminal?.deleteServer(actionTarget.dataset.id);
+        break;
+      case 'connect-server':
+        window.LinkHubTerminal?.connectServer(actionTarget.dataset.id);
+        break;
+      case 'save-server':
+        window.LinkHubTerminal?.saveServer();
+        break;
+      case 'close-server-modal':
+        window.LinkHubTerminal?.closeServerModal();
+        break;
+      case 'switch-conn':
+        window.LinkHubTerminal?.switchTab(actionTarget.dataset.id);
+        break;
+      case 'close-conn':
+        window.LinkHubTerminal?.closeConnection(actionTarget.dataset.id);
+        break;
+      case 'toggle-sidebar':
+        toggleSidebar();
+        break;
+      case 'refresh-files':
+        window.LinkHubTerminal?.refreshFiles(actionTarget.dataset.conn);
+        break;
+      case 'upload-file':
+        window.LinkHubTerminal?.uploadFile(actionTarget.dataset.conn);
+        break;
+      case 'nav-dir':
+        window.LinkHubTerminal?.navDir(actionTarget.dataset.conn, actionTarget.dataset.path);
+        break;
     }
   });
 }
@@ -314,6 +359,14 @@ function render() {
 // 暴露函数到全局
 window.switchPage = switchPage;
 window.render = render;
+
+// 侧栏收起/展开
+function toggleSidebar() {
+  const sidebar = document.getElementById('mainSidebar');
+  const mainContent = document.querySelector('.main-content');
+  sidebar.classList.toggle('collapsed');
+  mainContent.classList.toggle('sidebar-collapsed');
+}
 
 // 主题切换
 function initTheme() {
