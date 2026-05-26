@@ -288,6 +288,22 @@ function setupEventListeners() {
       case 'add-server':
         window.LinkHubTerminal?.openAddServer();
         break;
+      case 'add-group':
+        window.LinkHubTerminal?.addGroup();
+        break;
+      case 'select-group':
+        window.LinkHubTerminal?.selectGroup(actionTarget.dataset.group);
+        break;
+      case 'delete-group':
+        e.stopPropagation();
+        window.LinkHubTerminal?.deleteGroup(actionTarget.dataset.group);
+        break;
+      case 'ctx-edit-group':
+        window.LinkHubTerminal?.ctxEditGroup();
+        break;
+      case 'ctx-delete-group':
+        window.LinkHubTerminal?.ctxDeleteGroup();
+        break;
       case 'edit-server':
         window.LinkHubTerminal?.openEditServer(actionTarget.dataset.id);
         break;

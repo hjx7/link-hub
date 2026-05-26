@@ -48,9 +48,6 @@
     <main class="main-content">
       <!-- 常用网站页 -->
       <div class="page active" id="page-sites">
-        <div class="page-header">
-          <h2>常用网站</h2>
-        </div>
         <div class="quick-grid" id="sitesGrid"></div>
       </div>
       
@@ -408,26 +405,40 @@
           <div class="terminal-body" id="terminalBody">
             <!-- 服务器列表面板（固定第一个 tab） -->
             <div class="terminal-panel active" id="serverListPanel">
-              <div class="server-list-container">
-                <div class="server-list-header">
-                  <div class="server-search-box">
-                    <span class="server-search-icon">🔍</span>
-                    <input type="text" class="server-search-input" id="serverSearchInput" placeholder="搜索名称或地址...">
+              <div class="server-page-layout">
+                <!-- 左侧分组 -->
+                <div class="server-group-panel">
+                  <div class="server-group-header">
+                    <button class="server-group-add-btn" data-action="add-group" title="添加分组">+</button>
                   </div>
-                  <button class="server-add-btn" data-action="add-server" title="添加服务器">+</button>
+                  <div class="server-group-list" id="serverGroupList">
+                    <div class="server-group-item active" data-action="select-group" data-group="all">
+                      <span class="server-group-name">全部</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="server-list-table">
-                  <div class="server-list-thead">
-                    <span class="server-col-status"><input type="checkbox" class="server-checkbox" id="serverCheckAll"></span>
-                    <span class="server-col-latency">延迟</span>
-                    <span class="server-col-name">名称</span>
-                    <span class="server-col-addr">地址</span>
-                    <span class="server-col-user">用户</span>
-                    <span class="server-col-info">信息</span>
-                    <span class="server-col-remark">备注</span>
-                    <span class="server-col-action">操作</span>
+                <!-- 右侧服务器列表 -->
+                <div class="server-list-container">
+                  <div class="server-list-header">
+                    <div class="server-search-box">
+                      <span class="server-search-icon">🔍</span>
+                      <input type="text" class="server-search-input" id="serverSearchInput" placeholder="搜索名称或地址...">
+                    </div>
+                    <button class="server-add-btn" data-action="add-server" title="添加服务器">+</button>
                   </div>
-                  <div class="terminal-server-list" id="serverList"></div>
+                  <div class="server-list-table">
+                    <div class="server-list-thead">
+                      <span class="server-col-status"><input type="checkbox" class="server-checkbox" id="serverCheckAll"></span>
+                      <span class="server-col-latency">延迟</span>
+                      <span class="server-col-name">名称</span>
+                      <span class="server-col-addr">地址</span>
+                      <span class="server-col-user">用户</span>
+                      <span class="server-col-info">信息</span>
+                      <span class="server-col-remark">备注</span>
+                      <span class="server-col-action">操作</span>
+                    </div>
+                    <div class="terminal-server-list" id="serverList"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -439,39 +450,43 @@
   
   <!-- 添加/编辑服务器弹窗 -->
   <div class="modal" id="serverModal" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
+    <div class="server-modal-content">
+      <div class="server-modal-header">
         <span id="serverModalTitle">添加服务器</span>
         <button class="close-btn" data-action="close-server-modal">×</button>
       </div>
-      <div class="modal-body">
+      <div class="server-modal-body">
         <input type="hidden" id="serverId">
-        <div class="form-group">
-          <label>名称</label>
-          <input type="text" id="serverName" placeholder="如：生产服务器">
+        <div class="srv-field">
+          <label class="srv-label">分组：</label>
+          <select id="serverGroup" class="srv-input">
+            <option value="">全部</option>
+          </select>
         </div>
-        <div class="form-group">
-          <label>服务器地址</label>
-          <input type="text" id="serverWsUrl" placeholder="如 192.168.1.100（远程服务器 IP）">
+        <div class="srv-field">
+          <label class="srv-label"><span class="srv-req">*</span> 名称：</label>
+          <input type="text" id="serverName" class="srv-input" placeholder="我的服务器">
         </div>
-        <div class="form-group">
-          <label>SSH 端口</label>
-          <input type="number" id="serverPort" value="22" placeholder="22">
+        <div class="srv-field">
+          <label class="srv-label"><span class="srv-req">*</span> 地址：</label>
+          <input type="text" id="serverWsUrl" class="srv-input srv-input-addr" placeholder="192.168.1.100">
+          <label class="srv-label-sm"><span class="srv-req">*</span> 端口：</label>
+          <input type="number" id="serverPort" class="srv-input srv-input-port" value="22" placeholder="22">
         </div>
-        <div class="form-group">
-          <label>SSH 用户名</label>
-          <input type="text" id="serverUsername" placeholder="root">
+        <div class="srv-field">
+          <label class="srv-label"><span class="srv-req">*</span> 用户：</label>
+          <input type="text" id="serverUsername" class="srv-input" placeholder="root">
         </div>
-        <div class="form-group">
-          <label>SSH 密码</label>
-          <input type="password" id="serverPassword" placeholder="密码">
+        <div class="srv-field">
+          <label class="srv-label">密码：</label>
+          <input type="password" id="serverPassword" class="srv-input" placeholder="登录密码">
         </div>
-        <div class="form-group">
-          <label>备注</label>
-          <input type="text" id="serverRemark" placeholder="可选，如：生产环境、测试机等">
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">备注：</label>
+          <input type="text" id="serverRemark" class="srv-input" placeholder="可选">
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="server-modal-footer">
         <button class="btn btn-secondary" data-action="close-server-modal">取消</button>
         <button class="btn btn-primary" data-action="save-server">保存</button>
       </div>

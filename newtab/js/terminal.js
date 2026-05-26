@@ -7,10 +7,13 @@ let _servers = [];
 let _connections = [];
 let _activeTabId = 'server-list';
 let _connIdCounter = 0;
+let _groups = [];         // 分组列表
+let _selectedGroup = 'all'; // 当前选中的分组
 
 // 初始化
 function initTerminal() {
   loadConfig();
+  renderGroupList();
   renderServerList();
   // 检测服务器在线状态
   checkServersStatus();
@@ -37,6 +40,14 @@ function initTerminal() {
     const fileItem = e.target.closest('.term-file-item');
     if (fileItem && fileItem.dataset.filepath) {
       showFileContextMenu(e, fileItem.dataset.conn, fileItem.dataset.filepath, fileItem.dataset.name, fileItem.dataset.isdir);
+    }
+  });
+
+  // 分组右键菜单
+  document.getElementById('serverGroupList')?.addEventListener('contextmenu', (e) => {
+    const groupItem = e.target.closest('.server-group-item');
+    if (groupItem && groupItem.dataset.group && groupItem.dataset.group !== 'all') {
+      showGroupContextMenu(e, groupItem.dataset.group);
     }
   });
 }
@@ -97,6 +108,8 @@ function loadConfig() {
   try {
     const servers = localStorage.getItem('linkhub-servers');
     if (servers) _servers = JSON.parse(servers);
+    const groups = localStorage.getItem('linkhub-server-groups');
+    if (groups) _groups = JSON.parse(groups);
     // 加载缓存的系统信息
     const sysInfoCache = localStorage.getItem('linkhub-sysinfo');
     if (sysInfoCache) {
@@ -111,6 +124,7 @@ function loadConfig() {
 // 保存服务器列表
 function saveServers() {
   localStorage.setItem('linkhub-servers', JSON.stringify(_servers));
+  localStorage.setItem('linkhub-server-groups', JSON.stringify(_groups));
   // 缓存系统信息
   const cache = {};
   for (const s of _servers) {
@@ -119,15 +133,136 @@ function saveServers() {
   localStorage.setItem('linkhub-sysinfo', JSON.stringify(cache));
 }
 
+// 渲染分组列表
+function renderGroupList() {
+  const container = document.getElementById('serverGroupList');
+  if (!container) return;
+
+  let html = `<div class="server-group-item ${_selectedGroup === 'all' ? 'active' : ''}" data-action="select-group" data-group="all">
+    <span class="server-group-name">全部</span>
+    <span class="server-group-count">${_servers.length}</span>
+  </div>`;
+
+  for (const g of _groups) {
+    const count = _servers.filter(s => s.group === g.id).length;
+    html += `<div class="server-group-item ${_selectedGroup === g.id ? 'active' : ''}" data-action="select-group" data-group="${g.id}" data-name="${escapeHtml(g.name)}">
+      <span class="server-group-name">${escapeHtml(g.name)}</span>
+      <span class="server-group-count">${count}</span>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+
+  // 更新添加服务器表单的分组下拉
+  updateGroupSelect();
+}
+
+// 更新分组下拉选项
+function updateGroupSelect() {
+  const select = document.getElementById('serverGroup');
+  if (!select) return;
+  let html = '<option value="">全部</option>';
+  for (const g of _groups) {
+    html += `<option value="${g.id}">${escapeHtml(g.name)}</option>`;
+  }
+  select.innerHTML = html;
+}
+
+// 添加分组
+function addGroup() {
+  const name = prompt('输入分组名称');
+  if (!name || !name.trim()) return;
+  _groups.push({ id: Date.now().toString(), name: name.trim() });
+  saveServers();
+  renderGroupList();
+}
+
+// 编辑分组
+function editGroup(groupId) {
+  const group = _groups.find(g => g.id === groupId);
+  if (!group) return;
+  const name = prompt('修改分组名称', group.name);
+  if (!name || !name.trim()) return;
+  group.name = name.trim();
+  saveServers();
+  renderGroupList();
+}
+
+// 删除分组
+function deleteGroup(groupId) {
+  if (!confirm('确定删除这个分组？（服务器不会被删除）')) return;
+  _groups = _groups.filter(g => g.id !== groupId);
+  _servers.forEach(s => { if (s.group === groupId) s.group = ''; });
+  saveServers();
+  if (_selectedGroup === groupId) _selectedGroup = 'all';
+  renderGroupList();
+  renderServerList();
+}
+
+// 分组右键菜单
+let _groupContextMenu = null;
+let _groupContextId = null;
+
+function showGroupContextMenu(e, groupId) {
+  e.preventDefault();
+  _groupContextId = groupId;
+
+  if (!_groupContextMenu) {
+    _groupContextMenu = document.createElement('div');
+    _groupContextMenu.className = 'file-context-menu';
+    _groupContextMenu.innerHTML = `
+      <button class="file-ctx-item" data-action="ctx-edit-group"><span>✏️</span> 编辑</button>
+      <button class="file-ctx-item" data-action="ctx-delete-group"><span>🗑️</span> 删除</button>
+    `;
+    document.body.appendChild(_groupContextMenu);
+    document.addEventListener('click', () => hideGroupContextMenu());
+  }
+
+  _groupContextMenu.style.display = 'block';
+  _groupContextMenu.style.left = e.clientX + 'px';
+  _groupContextMenu.style.top = e.clientY + 'px';
+}
+
+function hideGroupContextMenu() {
+  if (_groupContextMenu) {
+    _groupContextMenu.style.display = 'none';
+  }
+  _groupContextId = null;
+}
+
+function ctxEditGroup() {
+  if (_groupContextId) editGroup(_groupContextId);
+  hideGroupContextMenu();
+}
+
+function ctxDeleteGroup() {
+  if (_groupContextId) deleteGroup(_groupContextId);
+  hideGroupContextMenu();
+}
+
+// 选择分组
+function selectGroup(groupId) {
+  _selectedGroup = groupId;
+  renderGroupList();
+  renderServerList();
+}
+
 // 渲染服务器列表
 function renderServerList(filter) {
   const container = document.getElementById('serverList');
   if (!container) return;
 
   let list = _servers;
+
+  // 按分组筛选
+  if (_selectedGroup !== 'all') {
+    list = list.filter(s => s.group === _selectedGroup);
+  }
+
+  // 按搜索词筛选
   if (filter) {
     const lower = filter.toLowerCase();
-    list = _servers.filter(s =>
+    list = list.filter(s =>
       (s.name && s.name.toLowerCase().includes(lower)) ||
       (s.host && s.host.toLowerCase().includes(lower)) ||
       (s.wsUrl && s.wsUrl.toLowerCase().includes(lower))
@@ -172,6 +307,8 @@ function openAddServer() {
   document.getElementById('serverUsername').value = '';
   document.getElementById('serverPassword').value = '';
   document.getElementById('serverRemark').value = '';
+  updateGroupSelect();
+  document.getElementById('serverGroup').value = '';
   document.getElementById('serverModal').style.display = 'flex';
   document.getElementById('serverName').focus();
 }
@@ -189,6 +326,8 @@ function openEditServer(id) {
   document.getElementById('serverUsername').value = server.username;
   document.getElementById('serverPassword').value = server.password || '';
   document.getElementById('serverRemark').value = server.remark || '';
+  updateGroupSelect();
+  document.getElementById('serverGroup').value = server.group || '';
   document.getElementById('serverModal').style.display = 'flex';
 }
 
@@ -201,6 +340,7 @@ function saveServer() {
   const username = document.getElementById('serverUsername').value.trim();
   const password = document.getElementById('serverPassword').value;
   const remark = document.getElementById('serverRemark').value.trim();
+  const group = document.getElementById('serverGroup').value;
 
   if (!name || !wsUrl || !username) {
     alert('请填写名称、服务器地址和用户名');
@@ -210,16 +350,17 @@ function saveServer() {
   if (id) {
     const idx = _servers.findIndex(s => s.id === id);
     if (idx >= 0) {
-      _servers[idx] = { ..._servers[idx], name, wsUrl, port, username, password, remark, host: wsUrl };
+      _servers[idx] = { ..._servers[idx], name, wsUrl, port, username, password, remark, group, host: wsUrl };
     }
   } else {
     _servers.push({
       id: Date.now().toString(),
-      name, wsUrl, port, username, password, remark, host: wsUrl
+      name, wsUrl, port, username, password, remark, group, host: wsUrl
     });
   }
 
   saveServers();
+  renderGroupList();
   renderServerList();
   closeServerModal();
 }
@@ -229,6 +370,7 @@ function deleteServer(id) {
   if (!confirm('确定删除这个服务器？')) return;
   _servers = _servers.filter(s => s.id !== id);
   saveServers();
+  renderGroupList();
   renderServerList();
 }
 
@@ -873,5 +1015,11 @@ window.LinkHubTerminal = {
   uploadFile,
   filePageChange,
   downloadFile,
-  renameFile
+  renameFile,
+  addGroup,
+  deleteGroup,
+  editGroup,
+  selectGroup,
+  ctxEditGroup,
+  ctxDeleteGroup
 };
