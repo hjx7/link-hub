@@ -79,12 +79,34 @@ function getBookmarkCommands() {
   return commands;
 }
 
+// 获取终端服务器命令
+function getServerCommands() {
+  const commands = [];
+  try {
+    const servers = JSON.parse(localStorage.getItem('linkhub-servers') || '[]');
+    for (const s of servers) {
+      commands.push({
+        type: CMD_TYPE.SITE,
+        icon: '💻',
+        title: s.name,
+        desc: (s.username || '') + '@' + (s.host || s.wsUrl || ''),
+        action: () => {
+          window.switchPage('terminal');
+          setTimeout(() => window.LinkHubTerminal?.connectServer(s.id), 300);
+        }
+      });
+    }
+  } catch (e) {}
+  return commands;
+}
+
 // 构建所有命令列表
 function buildCommandList() {
   _commandItems = [
     ...getBuiltinCommands(),
     ...getSiteCommands(),
-    ...getBookmarkCommands()
+    ...getBookmarkCommands(),
+    ...getServerCommands()
   ];
 }
 

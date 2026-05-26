@@ -70,9 +70,11 @@ function setupEventListeners() {
     (e) => window.LinkHubBookmarks?.filterBookmarks(e), 300
   ));
   
-  // 书签弹窗点击外部关闭
+  // 书签弹窗 - 不允许点击遮罩关闭
   document.getElementById('bookmarkModal').addEventListener('click', (e) => {
-    if (e.target.id === 'bookmarkModal') window.LinkHubBookmarks?.closeModal();
+    if (e.target.id === 'bookmarkModal') {
+      e.stopPropagation();
+    }
   });
 
   // 服务器弹窗 - 不允许点击遮罩关闭（只允许按钮关闭）
@@ -319,6 +321,15 @@ function setupEventListeners() {
       case 'nav-dir':
         window.LinkHubTerminal?.navDir(actionTarget.dataset.conn, actionTarget.dataset.path);
         break;
+      case 'file-page':
+        window.LinkHubTerminal?.filePageChange(actionTarget.dataset.conn, actionTarget.dataset.page);
+        break;
+      case 'ctx-download':
+        window.LinkHubTerminal?.downloadFile();
+        break;
+      case 'ctx-rename':
+        window.LinkHubTerminal?.renameFile();
+        break;
     }
   });
 }
@@ -326,6 +337,14 @@ function setupEventListeners() {
 // 切换页面
 function switchPage(page) {
   currentPage = page;
+  
+  // 切换到非终端页面时，恢复侧栏
+  if (page !== 'terminal') {
+    const sidebar = document.getElementById('mainSidebar');
+    const mainContent = document.querySelector('.main-content');
+    sidebar.classList.remove('collapsed');
+    mainContent.classList.remove('sidebar-collapsed');
+  }
   
   // 更新导航状态
   document.querySelectorAll('.nav-item').forEach(item => {

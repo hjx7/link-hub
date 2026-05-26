@@ -20,6 +20,14 @@ function initTerminal() {
       renderServerList(searchInput.value.trim());
     });
   }
+
+  // 文件列表右键菜单
+  document.getElementById('terminalBody')?.addEventListener('contextmenu', (e) => {
+    const fileItem = e.target.closest('.term-file-item');
+    if (fileItem && fileItem.dataset.filepath) {
+      showFileContextMenu(e, fileItem.dataset.conn, fileItem.dataset.filepath, fileItem.dataset.name, fileItem.dataset.isdir);
+    }
+  });
 }
 
 // 加载配置
@@ -178,11 +186,13 @@ function connectServer(serverId) {
         <div class="term-file-header">
           <span class="term-file-path" id="filepath-${connId}">/</span>
           <button class="term-file-btn" data-action="upload-file" data-conn="${connId}" title="上传文件">📤</button>
-          <button class="term-file-btn" data-action="refresh-files" data-conn="${connId}" title="刷新">🔄</button>
           <input type="file" id="fileInput-${connId}" style="display:none" multiple>
         </div>
+        <div class="term-file-pager-top" id="filepager-${connId}"></div>
         <div class="term-file-list" id="filelist-${connId}"></div>
+        <div class="term-upload-status" id="uploadstatus-${connId}"></div>
       </div>
+      <div class="term-splitter" id="splitter-${connId}"></div>
       <div class="term-terminal-area" id="termarea-${connId}"></div>
     </div>
   `;
@@ -195,7 +205,7 @@ function connectServer(serverId) {
     rows: 24,
     cols: 80,
     theme: {
-      background: '#1e1e1e',
+      background: '#111111',
       foreground: '#d4d4d4',
       cursor: '#ffffff',
       selectionBackground: '#264f78'
@@ -216,6 +226,9 @@ function connectServer(serverId) {
   setTimeout(() => {
     fitAddon.fit();
   }, 200);
+
+  // 初始化分割条拖动
+  initTermSplitter(connId, fitAddon);
 
   // WebSocket 事件
   ws.onopen = () => {
@@ -274,6 +287,11 @@ function connectServer(serverId) {
           const curPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
           ws.send(JSON.stringify({ type: 'listDir', path: curPath }));
           break;
+        case 'renameOk':
+          // 刷新文件列表
+          const rPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
+          ws.send(JSON.stringify({ type: 'listDir', path: rPath }));
+          break;
       }
     } catch (err) {}
   };
@@ -287,17 +305,29 @@ function connectServer(serverId) {
   };
 
   // 终端输入
+  let _inputBuffer = '';
   terminal.onData((data) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'input', data }));
 
-      // 每次按回车后，延迟获取当前目录并刷新文件列表
+      // 只在检测到 cd 命令时才刷新文件列表
       if (data === '\r' || data === '\n') {
-        setTimeout(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'getCwd' }));
-          }
-        }, 500);
+        const cmd = _inputBuffer.trim();
+        _inputBuffer = '';
+        if (cmd === 'cd' || cmd.startsWith('cd ')) {
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'getCwd' }));
+            }
+          }, 500);
+        }
+      } else if (data === '\x7f' || data === '\b') {
+        _inputBuffer = _inputBuffer.slice(0, -1);
+      } else if (data.length === 1 && data >= ' ') {
+        _inputBuffer += data;
+      } else if (data.length > 1 && !data.includes('\x1b')) {
+        // 粘贴的文本
+        _inputBuffer += data;
       }
     }
   });
@@ -398,6 +428,8 @@ function renderTabs() {
 }
 
 // 渲染文件列表
+let _filePages = {}; // 每个连接的当前页码
+
 function renderFileList(connId, path, files) {
   const pathEl = document.getElementById(`filepath-${connId}`);
   const listEl = document.getElementById(`filelist-${connId}`);
@@ -412,27 +444,43 @@ function renderFileList(connId, path, files) {
     return a.name.localeCompare(b.name);
   });
 
+  // 统计
+  const dirCount = files.filter(f => f.isDir).length;
+  const fileCount = files.filter(f => !f.isDir).length;
+
+  // 分页
+  const pageSize = 25;
+  const totalPages = Math.ceil(files.length / pageSize) || 1;
+  if (!_filePages[connId]) _filePages[connId] = 1;
+  let currentPage = _filePages[connId];
+  if (currentPage > totalPages) currentPage = 1;
+  _filePages[connId] = currentPage;
+
+  const startIdx = (currentPage - 1) * pageSize;
+  const pageFiles = files.slice(startIdx, startIdx + pageSize);
+
   let html = '';
 
-  // 上级目录
-  if (path !== '/') {
+  // 上级目录（只在第一页显示）
+  if (path !== '/' && currentPage === 1) {
     html += `<div class="term-file-item" data-action="nav-dir" data-conn="${connId}" data-path="${path}/..">
       <span class="term-file-icon">📁</span>
       <span class="term-file-name">..</span>
     </div>`;
   }
 
-  for (const f of files) {
+  for (const f of pageFiles) {
     const icon = f.isDir ? '📁' : '📄';
     const size = f.isDir ? '' : formatFileSize(f.size);
+    const itemPath = path === '/' ? '/' + f.name : path + '/' + f.name;
     if (f.isDir) {
-      html += `<div class="term-file-item" data-action="nav-dir" data-conn="${connId}" data-path="${path}/${f.name}">
+      html += `<div class="term-file-item" data-action="nav-dir" data-conn="${connId}" data-path="${itemPath}" data-name="${escapeHtml(f.name)}" data-isdir="true" data-filepath="${itemPath}">
         <span class="term-file-icon">${icon}</span>
         <span class="term-file-name">${escapeHtml(f.name)}</span>
         <span class="term-file-size">${size}</span>
       </div>`;
     } else {
-      html += `<div class="term-file-item">
+      html += `<div class="term-file-item" data-name="${escapeHtml(f.name)}" data-isdir="false" data-filepath="${itemPath}" data-conn="${connId}">
         <span class="term-file-icon">${icon}</span>
         <span class="term-file-name">${escapeHtml(f.name)}</span>
         <span class="term-file-size">${size}</span>
@@ -440,7 +488,33 @@ function renderFileList(connId, path, files) {
     }
   }
 
+  // 分页栏（放到顶部，始终显示两行）
+  const pagerEl = document.getElementById(`filepager-${connId}`);
+  if (pagerEl) {
+    let pagerHtml = `<div class="term-file-stats-line">${fileCount} 个文件，${dirCount} 个文件夹</div>`;
+    pagerHtml += `<div class="term-file-pages">`;
+    pagerHtml += `<button class="term-page-btn" data-action="file-page" data-conn="${connId}" data-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
+    for (let i = 1; i <= totalPages; i++) {
+      pagerHtml += `<button class="term-page-btn ${i === currentPage ? 'active' : ''}" data-action="file-page" data-conn="${connId}" data-page="${i}">${i}</button>`;
+    }
+    pagerHtml += `<button class="term-page-btn" data-action="file-page" data-conn="${connId}" data-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+    pagerHtml += `</div>`;
+    pagerEl.innerHTML = pagerHtml;
+  }
+
   listEl.innerHTML = html;
+
+  // 保存文件数据用于翻页
+  listEl._filesData = { path, files };
+}
+
+// 切换文件列表页码
+function filePageChange(connId, page) {
+  _filePages[connId] = parseInt(page);
+  const listEl = document.getElementById(`filelist-${connId}`);
+  if (listEl && listEl._filesData) {
+    renderFileList(connId, listEl._filesData.path, listEl._filesData.files);
+  }
 }
 
 // 格式化文件大小
@@ -463,6 +537,7 @@ function refreshFiles(connId) {
 function navDir(connId, path) {
   const conn = _connections.find(c => c.id === connId);
   if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
+  _filePages[connId] = 1; // 切换目录重置页码
   conn.ws.send(JSON.stringify({ type: 'listDir', path }));
 }
 
@@ -475,22 +550,202 @@ function uploadFile(connId) {
     const conn = _connections.find(c => c.id === connId);
     if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
     const path = document.getElementById(`filepath-${connId}`)?.textContent || '.';
+    const statusEl = document.getElementById(`uploadstatus-${connId}`);
 
     for (const file of input.files) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result.split(',')[1];
-        conn.ws.send(JSON.stringify({
-          type: 'upload',
-          path: path,
-          fileName: file.name,
-          fileData: base64
-        }));
-      };
-      reader.readAsDataURL(file);
+      uploadSingleFile(conn, connId, path, file, statusEl);
     }
     input.value = '';
   };
+}
+
+// 上传单个文件（分片 + 进度）
+function uploadSingleFile(conn, connId, remotePath, file, statusEl) {
+  const chunkSize = 512 * 1024; // 512KB
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  let currentChunk = 0;
+
+  // 显示进度
+  const itemId = 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  const itemHtml = `<div class="term-upload-item" id="${itemId}">
+    <div class="upload-item-info">
+      <span class="upload-item-name">${escapeHtml(file.name)}</span>
+      <span class="upload-item-size">${formatFileSize(file.size)}</span>
+    </div>
+    <div class="upload-item-bar"><div class="upload-item-progress" id="prog-${itemId}"></div></div>
+    <span class="upload-item-percent" id="pct-${itemId}">0%</span>
+  </div>`;
+  statusEl.insertAdjacentHTML('beforeend', itemHtml);
+
+  const reader = new FileReader();
+
+  function readNextChunk() {
+    const start = currentChunk * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const slice = file.slice(start, end);
+    reader.readAsDataURL(slice);
+  }
+
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1];
+    conn.ws.send(JSON.stringify({
+      type: 'uploadChunk',
+      path: remotePath,
+      fileName: file.name,
+      fileData: base64,
+      data: `${currentChunk}/${totalChunks}`
+    }));
+
+    currentChunk++;
+    const percent = Math.round((currentChunk / totalChunks) * 100);
+    const progEl = document.getElementById(`prog-${itemId}`);
+    const pctEl = document.getElementById(`pct-${itemId}`);
+    if (progEl) progEl.style.width = percent + '%';
+    if (pctEl) pctEl.textContent = percent + '%';
+
+    if (currentChunk < totalChunks) {
+      readNextChunk();
+    } else {
+      // 上传完成
+      if (pctEl) pctEl.textContent = '完成';
+      if (progEl) progEl.style.background = '#4caf50';
+      // 3 秒后移除进度条
+      setTimeout(() => {
+        document.getElementById(itemId)?.remove();
+      }, 3000);
+      // 刷新文件列表
+      const curPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
+      conn.ws.send(JSON.stringify({ type: 'listDir', path: curPath }));
+    }
+  };
+
+  readNextChunk();
+}
+
+// 文件右键菜单
+let _fileContextMenu = null;
+let _fileContextData = null;
+
+function showFileContextMenu(e, connId, filePath, fileName, isDir) {
+  e.preventDefault();
+  _fileContextData = { connId, filePath, fileName, isDir };
+
+  if (!_fileContextMenu) {
+    _fileContextMenu = document.createElement('div');
+    _fileContextMenu.className = 'file-context-menu';
+    _fileContextMenu.innerHTML = `
+      <button class="file-ctx-item" data-action="ctx-download"><span>📥</span> 下载</button>
+      <button class="file-ctx-item" data-action="ctx-rename"><span>✏️</span> 重命名</button>
+    `;
+    document.body.appendChild(_fileContextMenu);
+
+    document.addEventListener('click', () => hideFileContextMenu());
+  }
+
+  // 文件夹不显示下载 → 改为都显示
+  // const dlBtn = _fileContextMenu.querySelector('[data-action="ctx-download"]');
+  // dlBtn.style.display = isDir === 'true' ? 'none' : '';
+
+  _fileContextMenu.style.display = 'block';
+  _fileContextMenu.style.left = e.clientX + 'px';
+  _fileContextMenu.style.top = e.clientY + 'px';
+
+  // 确保不超出视口
+  const rect = _fileContextMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    _fileContextMenu.style.left = (e.clientX - rect.width) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    _fileContextMenu.style.top = (e.clientY - rect.height) + 'px';
+  }
+}
+
+function hideFileContextMenu() {
+  if (_fileContextMenu) {
+    _fileContextMenu.style.display = 'none';
+  }
+  _fileContextData = null;
+}
+
+// 下载文件
+function downloadFile() {
+  if (!_fileContextData) return;
+  const { connId, filePath, fileName, isDir } = _fileContextData;
+  const conn = _connections.find(c => c.id === connId);
+  if (!conn) return;
+
+  // 通过 HTTP 下载接口
+  const server = _servers.find(s => s.id === conn.serverId);
+  if (!server) return;
+
+  const host = server.wsUrl || server.host;
+  const downloadUrl = `http://localhost:18022/download?host=${encodeURIComponent(host)}&port=${server.port || 22}&username=${encodeURIComponent(server.username)}&password=${encodeURIComponent(server.password)}&path=${encodeURIComponent(filePath)}&isDir=${isDir}`;
+
+  // 用隐藏的 a 标签触发下载
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = isDir === 'true' ? fileName + '.tar.gz' : fileName;
+  a.click();
+
+  hideFileContextMenu();
+}
+
+// 重命名
+function renameFile() {
+  if (!_fileContextData) return;
+  const { connId, filePath, fileName } = _fileContextData;
+  const newName = prompt('重命名', fileName);
+  if (!newName || newName === fileName) {
+    hideFileContextMenu();
+    return;
+  }
+  const conn = _connections.find(c => c.id === connId);
+  if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
+
+  // 计算新路径
+  const dir = filePath.substring(0, filePath.lastIndexOf('/'));
+  const newPath = dir + '/' + newName;
+  conn.ws.send(JSON.stringify({ type: 'rename', path: filePath, data: newPath }));
+  hideFileContextMenu();
+}
+
+// 分割条拖动
+function initTermSplitter(connId, fitAddon) {
+  const splitter = document.getElementById(`splitter-${connId}`);
+  const filePanel = document.getElementById(`files-${connId}`);
+  if (!splitter || !filePanel) return;
+
+  let isDragging = false;
+
+  splitter.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    e.preventDefault();
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const layout = filePanel.parentElement;
+    if (!layout) return;
+    const rect = layout.getBoundingClientRect();
+    const newWidth = e.clientX - rect.left;
+    const minW = 150;
+    const maxW = 500;
+    if (newWidth >= minW && newWidth <= maxW) {
+      filePanel.style.width = newWidth + 'px';
+      fitAddon.fit();
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      fitAddon.fit();
+    }
+  });
 }
 
 // HTML 转义
@@ -515,5 +770,8 @@ window.LinkHubTerminal = {
   closeConnection,
   refreshFiles,
   navDir,
-  uploadFile
+  uploadFile,
+  filePageChange,
+  downloadFile,
+  renameFile
 };

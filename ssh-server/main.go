@@ -459,6 +459,53 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			safeSend(Message{Type: "uploadOk", Data: remotePath})
 
+		case "uploadChunk":
+			if sshSession == nil || sshSession.sftpClient == nil {
+				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+				continue
+			}
+			remotePath := msg.Path + "/" + msg.FileName
+			decoded, err := base64Decode(msg.FileData)
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "upload decode failed: " + err.Error()})
+				continue
+			}
+			// 解析 chunk 信息: "currentChunk/totalChunks"
+			isFirstChunk := false
+			if len(msg.Data) > 0 && msg.Data[0] == '0' {
+				isFirstChunk = true
+			}
+			var f *sftp.File
+			if isFirstChunk {
+				f, err = sshSession.sftpClient.Create(remotePath)
+			} else {
+				f, err = sshSession.sftpClient.OpenFile(remotePath, os.O_WRONLY|os.O_APPEND)
+			}
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "upload open failed: " + err.Error()})
+				continue
+			}
+			_, err = f.Write(decoded)
+			f.Close()
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "upload write failed: " + err.Error()})
+				continue
+			}
+
+		case "rename":
+			if sshSession == nil || sshSession.sftpClient == nil {
+				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+				continue
+			}
+			oldPath := msg.Path
+			newPath := msg.Data
+			err := sshSession.sftpClient.Rename(oldPath, newPath)
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "rename failed: " + err.Error()})
+				continue
+			}
+			safeSend(Message{Type: "renameOk", Data: newPath})
+
 		case "disconnect":
 			if sshSession != nil {
 				sshSession.Close()
@@ -580,7 +627,166 @@ func runServer() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "1.0.0"})
 	})
 
+	// HTTP 文件下载接口
+	http.HandleFunc("/download", handleDownload)
+
 	addr := fmt.Sprintf("%s:%d", bind, port)
 	log.Printf("LinkHub SSH Server v1.0.0 listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+// HTTP 下载处理
+func handleDownload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	host := r.URL.Query().Get("host")
+	portStr := r.URL.Query().Get("port")
+	username := r.URL.Query().Get("username")
+	password := r.URL.Query().Get("password")
+	filePath := r.URL.Query().Get("path")
+	isDir := r.URL.Query().Get("isDir")
+
+	if host == "" || username == "" || filePath == "" {
+		http.Error(w, "missing parameters", 400)
+		return
+	}
+
+	sshPort := 22
+	if portStr != "" {
+		fmt.Sscanf(portStr, "%d", &sshPort)
+	}
+
+	// 建立 SSH 连接
+	config := &ssh.ClientConfig{
+		User:            username,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%d", host, sshPort)
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		http.Error(w, "SSH connect failed: "+err.Error(), 500)
+		return
+	}
+	defer client.Close()
+
+	if isDir == "true" {
+		// 文件夹：tar 打包流式传输
+		session, err := client.NewSession()
+		if err != nil {
+			http.Error(w, "session failed: "+err.Error(), 500)
+			return
+		}
+		defer session.Close()
+
+		stdout, err := session.StdoutPipe()
+		if err != nil {
+			http.Error(w, "stdout pipe failed", 500)
+			return
+		}
+
+		// 获取文件夹名作为下载文件名
+		parts := splitPath(filePath)
+		fileName := parts[len(parts)-1] + ".tar.gz"
+
+		w.Header().Set("Content-Type", "application/gzip")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+
+		err = session.Start("tar czf - -C \"" + filePath + "\" .")
+		if err != nil {
+			http.Error(w, "tar failed: "+err.Error(), 500)
+			return
+		}
+
+		buf := make([]byte, 64*1024)
+		for {
+			n, err := stdout.Read(buf)
+			if n > 0 {
+				w.Write(buf[:n])
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+		session.Wait()
+	} else {
+		// 文件：通过 SFTP 流式读取
+		sftpClient, err := sftp.NewClient(client)
+		if err != nil {
+			http.Error(w, "SFTP failed: "+err.Error(), 500)
+			return
+		}
+		defer sftpClient.Close()
+
+		f, err := sftpClient.Open(filePath)
+		if err != nil {
+			http.Error(w, "open file failed: "+err.Error(), 500)
+			return
+		}
+		defer f.Close()
+
+		stat, _ := f.Stat()
+		parts := splitPath(filePath)
+		fileName := parts[len(parts)-1]
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+		if stat != nil {
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
+		}
+
+		buf := make([]byte, 64*1024)
+		for {
+			n, err := f.Read(buf)
+			if n > 0 {
+				w.Write(buf[:n])
+				if flusher, ok := w.(http.Flusher); ok {
+					flusher.Flush()
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+}
+
+func splitPath(path string) []string {
+	var parts []string
+	for _, p := range filepath.SplitList(path) {
+		parts = append(parts, p)
+	}
+	// 简单按 / 分割
+	result := []string{}
+	for _, p := range split(path, '/') {
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		return []string{"download"}
+	}
+	return result
+}
+
+func split(s string, sep byte) []string {
+	var parts []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep {
+			if i > start {
+				parts = append(parts, s[start:i])
+			}
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		parts = append(parts, s[start:])
+	}
+	return parts
 }
