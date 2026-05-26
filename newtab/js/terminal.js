@@ -12,12 +12,23 @@ let _connIdCounter = 0;
 function initTerminal() {
   loadConfig();
   renderServerList();
+  // 检测服务器在线状态
+  checkServersStatus();
 
   // 搜索框实时过滤
   const searchInput = document.getElementById('serverSearchInput');
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       renderServerList(searchInput.value.trim());
+    });
+  }
+
+  // 全选复选框
+  const checkAll = document.getElementById('serverCheckAll');
+  if (checkAll) {
+    checkAll.addEventListener('change', () => {
+      const checkboxes = document.querySelectorAll('.terminal-server-list .server-checkbox');
+      checkboxes.forEach(cb => { cb.checked = checkAll.checked; });
     });
   }
 
@@ -30,17 +41,82 @@ function initTerminal() {
   });
 }
 
+// 渲染服务器信息标签
+function renderServerInfo(info) {
+  if (!info) return '<span class="server-info-tag">--</span>';
+  const tags = [];
+  if (info.os) tags.push(info.os);
+  if (info.cpu) tags.push(info.cpu);
+  if (info.mem) tags.push(info.mem.replace('Gi', 'G').replace('Mi', 'M').replace('Ti', 'T'));
+  if (info.disk) tags.push(info.disk.replace('Gi', 'G').replace('Mi', 'M').replace('Ti', 'T'));
+  if (tags.length === 0) return '<span class="server-info-tag">--</span>';
+  return tags.map(t => `<span class="server-info-tag">${escapeHtml(t)}</span>`).join('');
+}
+
+// 检测服务器在线状态和延迟
+function checkServersStatus() {
+  if (_servers.length === 0) {
+    setTimeout(checkServersStatus, 30000);
+    return;
+  }
+
+  let pending = _servers.length;
+
+  for (const server of _servers) {
+    const host = server.wsUrl || server.host;
+    if (!host) {
+      pending--;
+      continue;
+    }
+    const port = server.port || 22;
+    fetch(`http://localhost:18022/ping?host=${encodeURIComponent(host)}&port=${port}`)
+      .then(res => res.json())
+      .then(data => {
+        server._online = data.ok === true;
+        server._latency = data.latency !== undefined ? data.latency : null;
+      })
+      .catch(() => {
+        server._online = false;
+        server._latency = null;
+      })
+      .finally(() => {
+        pending--;
+        if (pending <= 0) {
+          const searchInput = document.getElementById('serverSearchInput');
+          const filter = searchInput ? searchInput.value.trim() : '';
+          renderServerList(filter);
+        }
+      });
+  }
+
+  setTimeout(checkServersStatus, 30000);
+}
+
 // 加载配置
 function loadConfig() {
   try {
     const servers = localStorage.getItem('linkhub-servers');
     if (servers) _servers = JSON.parse(servers);
+    // 加载缓存的系统信息
+    const sysInfoCache = localStorage.getItem('linkhub-sysinfo');
+    if (sysInfoCache) {
+      const cache = JSON.parse(sysInfoCache);
+      for (const s of _servers) {
+        if (cache[s.id]) s._sysInfo = cache[s.id];
+      }
+    }
   } catch (e) {}
 }
 
 // 保存服务器列表
 function saveServers() {
   localStorage.setItem('linkhub-servers', JSON.stringify(_servers));
+  // 缓存系统信息
+  const cache = {};
+  for (const s of _servers) {
+    if (s._sysInfo) cache[s.id] = s._sysInfo;
+  }
+  localStorage.setItem('linkhub-sysinfo', JSON.stringify(cache));
 }
 
 // 渲染服务器列表
@@ -63,20 +139,27 @@ function renderServerList(filter) {
     return;
   }
 
-  container.innerHTML = list.map(s => `
+  container.innerHTML = list.map(s => {
+    const host = s.host || s.wsUrl || '';
+    const statusClass = s._online === false ? 'offline' : 'online';
+    const latencyText = s._latency !== null && s._latency !== undefined ? s._latency + 'ms' : '--';
+    const infoHtml = renderServerInfo(s._sysInfo);
+    return `
     <div class="server-list-row" data-id="${s.id}">
-      <span class="server-col-status"><span class="server-status-dot"></span></span>
+      <span class="server-col-status"><input type="checkbox" class="server-checkbox" data-id="${s.id}"></span>
+      <span class="server-col-latency">${latencyText}</span>
       <span class="server-col-name" data-action="connect-server" data-id="${s.id}">${escapeHtml(s.name)}</span>
-      <span class="server-col-addr" data-action="connect-server" data-id="${s.id}">${escapeHtml(s.host || s.wsUrl)}:${s.port || 22}</span>
+      <span class="server-col-addr" data-action="connect-server" data-id="${s.id}">${escapeHtml(host)}</span>
       <span class="server-col-user" data-action="connect-server" data-id="${s.id}">${escapeHtml(s.username)}</span>
+      <span class="server-col-info" data-action="connect-server" data-id="${s.id}">${infoHtml}</span>
       <span class="server-col-remark" data-action="connect-server" data-id="${s.id}">${escapeHtml(s.remark || '')}</span>
       <span class="server-col-action">
         <button class="server-action-btn" data-action="connect-server" data-id="${s.id}">连接</button>
         <button class="server-action-btn server-action-edit" data-action="edit-server" data-id="${s.id}">编辑</button>
         <button class="server-action-btn server-action-del" data-action="delete-server" data-id="${s.id}">删除</button>
       </span>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 // 打开添加服务器弹窗
@@ -185,7 +268,7 @@ function connectServer(serverId) {
       <div class="term-file-panel" id="files-${connId}">
         <div class="term-file-header">
           <span class="term-file-path" id="filepath-${connId}">/</span>
-          <button class="term-file-btn" data-action="upload-file" data-conn="${connId}" title="上传文件">📤</button>
+          <button class="term-file-btn" data-action="upload-file" data-conn="${connId}" title="上传文件"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
           <input type="file" id="fileInput-${connId}" style="display:none" multiple>
         </div>
         <div class="term-file-pager-top" id="filepager-${connId}"></div>
@@ -254,6 +337,23 @@ function connectServer(serverId) {
         case 'connected':
           terminal.writeln('\x1b[32mConnected!\x1b[0m\r\n');
           // 文件列表会由 Go 端 SFTP 准备好后自动推送
+          // 请求系统信息
+          ws.send(JSON.stringify({ type: 'getSysInfo' }));
+          break;
+        case 'sysInfo':
+          // 保存系统信息到服务器数据
+          if (msg.data) {
+            try {
+              const info = JSON.parse(msg.data);
+              const server = _servers.find(s => s.id === conn.serverId);
+              if (server) {
+                server._sysInfo = info;
+                saveServers();
+                const searchInput = document.getElementById('serverSearchInput');
+                renderServerList(searchInput ? searchInput.value.trim() : '');
+              }
+            } catch(e) {}
+          }
           break;
         case 'output':
           terminal.write(msg.data);

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -435,6 +436,29 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			// 使用特殊标记包裹，在 stdout 中检测
 			sshSession.stdin.Write([]byte("echo __LINKHUB_CWD_START__$(pwd)__LINKHUB_CWD_END__\n"))
 
+		case "getSysInfo":
+			if sshSession == nil || sshSession.client == nil {
+				continue
+			}
+			go func() {
+				defer func() { recover() }()
+				infoSession, err := sshSession.client.NewSession()
+				if err != nil {
+					return
+				}
+				cmd := "echo \"{\\\"os\\\":\\\"$(lsb_release -ds 2>/dev/null || cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\\\"' || uname -s)\\\",\\\"cpu\\\":\\\"$(nproc) 核\\\",\\\"mem\\\":\\\"$(free -h | awk '/Mem:/{print $2}') 内存\\\",\\\"disk\\\":\\\"$(df -h / | awk 'NR==2{print $2}') 硬盘\\\"}\""
+				out, err := infoSession.Output(cmd)
+				infoSession.Close()
+				if err != nil {
+					return
+				}
+				result := string(out)
+				for len(result) > 0 && (result[len(result)-1] == '\n' || result[len(result)-1] == '\r') {
+					result = result[:len(result)-1]
+				}
+				safeSend(Message{Type: "sysInfo", Data: result})
+			}()
+
 		case "upload":
 			if sshSession == nil || sshSession.sftpClient == nil {
 				safeSend(Message{Type: "error", Data: "SFTP not connected"})
@@ -629,6 +653,31 @@ func runServer() {
 
 	// HTTP 文件下载接口
 	http.HandleFunc("/download", handleDownload)
+
+	// Ping 接口（检测远程服务器 SSH 端口是否可达）
+	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Content-Type", "application/json")
+		host := r.URL.Query().Get("host")
+		portStr := r.URL.Query().Get("port")
+		if host == "" {
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": false})
+			return
+		}
+		port := "22"
+		if portStr != "" {
+			port = portStr
+		}
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", host+":"+port, 3*time.Second)
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "latency": 0})
+			return
+		}
+		conn.Close()
+		latency := time.Since(start).Milliseconds()
+		json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "latency": latency})
+	})
 
 	addr := fmt.Sprintf("%s:%d", bind, port)
 	log.Printf("LinkHub SSH Server v1.0.0 listening on %s", addr)
