@@ -430,8 +430,8 @@
                     <div class="server-list-thead">
                       <span class="server-col-status"><input type="checkbox" class="server-checkbox" id="serverCheckAll"></span>
                       <span class="server-col-latency">延迟</span>
-                      <span class="server-col-name">名称</span>
-                      <span class="server-col-addr">地址</span>
+                      <span class="server-col-name">名称 <button class="sort-btn" data-action="sort-servers" data-field="name"><span class="sort-arrows">▲<br>▼</span></button></span>
+                      <span class="server-col-addr">地址 <button class="sort-btn" data-action="sort-servers" data-field="addr"><span class="sort-arrows">▲<br>▼</span></button></span>
                       <span class="server-col-user">用户</span>
                       <span class="server-col-info">信息</span>
                       <span class="server-col-remark">备注</span>
@@ -448,6 +448,26 @@
     </main>
   </div>
   
+  <!-- 添加/编辑分组弹窗 -->
+  <div class="modal" id="groupModal" style="display: none;">
+    <div class="server-modal-content" style="width:360px;">
+      <div class="server-modal-header">
+        <span id="groupModalTitle">添加分组</span>
+        <button class="close-btn" data-action="close-group-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">名称：</label>
+          <input type="text" id="groupNameInput" class="srv-input" placeholder="输入分组名称">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-group-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-group">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 添加/编辑服务器弹窗 -->
   <div class="modal" id="serverModal" style="display: none;">
     <div class="server-modal-content">

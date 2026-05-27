@@ -3562,13 +3562,33 @@ body {
   background: #2a2a2a;
 }
 
+.server-list-thead > span {
+  border-right: 1px solid #666;
+  padding-right: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.server-list-thead > span:first-child {
+  padding-left: 0;
+}
+
+.server-list-thead > span:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.server-list-row > span {
+  padding-right: 12px;
+}
+
 .server-col-status { width: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.server-col-latency { width: 70px; flex-shrink: 0; font-size: 13px; color: #a0d995; }
-.server-col-name { flex: 1; min-width: 0; padding-right: 12px; }
-.server-col-addr { flex: 1.2; min-width: 0; padding-right: 12px; }
-.server-col-user { width: 100px; flex-shrink: 0; padding-right: 12px; }
-.server-col-info { flex: 2.5; min-width: 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-right: 12px; }
-.server-col-remark { flex: 1; min-width: 0; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px; }
+.server-col-latency { width: 70px; flex-shrink: 0; font-size: 13px; color: #a0d995; padding-left: 12px; }
+.server-col-name { flex: 0.8; min-width: 0; padding-right: 16px; padding-left: 12px; }
+.server-col-addr { flex: 0.8; min-width: 0; padding-right: 16px; padding-left: 12px; }
+.server-col-user { width: 90px; flex-shrink: 0; padding-right: 16px; padding-left: 12px; }
+.server-col-info { flex: 3; min-width: 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-right: 16px; padding-left: 12px; }
+.server-col-remark { flex: 1; min-width: 0; color: #eee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 16px; padding-left: 12px; }
 .server-col-action { width: 180px; flex-shrink: 0; text-align: right; }
 
 .server-checkbox {
@@ -4310,4 +4330,36 @@ select.srv-input option:checked {
   min-width: 0;
   padding: 16px 24px;
   overflow-y: auto;
+}
+
+/* 排序按钮 */
+.sort-btn {
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 10px;
+  width: 16px;
+  height: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  vertical-align: middle;
+  transition: color 0.1s;
+  padding: 0;
+  line-height: 1;
+}
+
+.sort-btn:hover {
+  color: #fff;
+}
+
+.sort-arrows {
+  font-size: 8px;
+  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
 }

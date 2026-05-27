@@ -654,6 +654,9 @@ func runServer() {
 	// HTTP 文件下载接口
 	http.HandleFunc("/download", handleDownload)
 
+	// HTTP 文件上传接口
+	http.HandleFunc("/upload", handleUpload)
+
 	// Ping 接口（检测远程服务器 SSH 端口是否可达）
 	http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -803,6 +806,91 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// HTTP 上传处理
+func handleUpload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(200)
+		return
+	}
+
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+
+	// 限制上传大小 2GB
+	r.ParseMultipartForm(2 << 30)
+
+	host := r.FormValue("host")
+	portStr := r.FormValue("port")
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	remotePath := r.FormValue("path")
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "file read failed: "+err.Error(), 400)
+		return
+	}
+	defer file.Close()
+
+	sshPort := 22
+	if portStr != "" {
+		fmt.Sscanf(portStr, "%d", &sshPort)
+	}
+
+	// 建立 SSH + SFTP 连接
+	config := &ssh.ClientConfig{
+		User:            username,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%d", host, sshPort)
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		http.Error(w, "SSH connect failed: "+err.Error(), 500)
+		return
+	}
+	defer client.Close()
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		http.Error(w, "SFTP failed: "+err.Error(), 500)
+		return
+	}
+	defer sftpClient.Close()
+
+	// 创建远程文件
+	remoteFile := remotePath + "/" + header.Filename
+	f, err := sftpClient.Create(remoteFile)
+	if err != nil {
+		http.Error(w, "create file failed: "+err.Error(), 500)
+		return
+	}
+	defer f.Close()
+
+	// 流式写入
+	buf := make([]byte, 64*1024)
+	for {
+		n, err := file.Read(buf)
+		if n > 0 {
+			f.Write(buf[:n])
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	w.WriteHeader(200)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "path": remoteFile})
 }
 
 func splitPath(path string) []string {

@@ -51,10 +51,28 @@ async function loadBookmarks() {
   }
 }
 
+// 获取服务器列表
+function getServers() {
+  try {
+    const servers = JSON.parse(localStorage.getItem('linkhub-servers') || '[]');
+    return servers.map(s => ({
+      icon: '💻',
+      title: s.name || s.host || '',
+      desc: (s.username || '') + '@' + (s.host || s.wsUrl || ''),
+      type: '服务器',
+      actionType: 'page',
+      page: 'terminal'
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
 // 构建命令列表
 async function buildItems() {
   const bookmarks = await loadBookmarks();
-  _items = [...BUILTIN, ...bookmarks];
+  const servers = getServers();
+  _items = [...BUILTIN, ...servers, ...bookmarks];
 }
 
 // 过滤

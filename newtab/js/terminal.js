@@ -169,23 +169,51 @@ function updateGroupSelect() {
 }
 
 // 添加分组
+let _editingGroupId = null;
+
 function addGroup() {
-  const name = prompt('输入分组名称');
-  if (!name || !name.trim()) return;
-  _groups.push({ id: Date.now().toString(), name: name.trim() });
-  saveServers();
-  renderGroupList();
+  _editingGroupId = null;
+  document.getElementById('groupModalTitle').textContent = '添加分组';
+  document.getElementById('groupNameInput').value = '';
+  document.getElementById('groupModal').style.display = 'flex';
+  document.getElementById('groupNameInput').focus();
 }
 
 // 编辑分组
 function editGroup(groupId) {
   const group = _groups.find(g => g.id === groupId);
   if (!group) return;
-  const name = prompt('修改分组名称', group.name);
-  if (!name || !name.trim()) return;
-  group.name = name.trim();
+  _editingGroupId = groupId;
+  document.getElementById('groupModalTitle').textContent = '编辑分组';
+  document.getElementById('groupNameInput').value = group.name;
+  document.getElementById('groupModal').style.display = 'flex';
+  document.getElementById('groupNameInput').focus();
+}
+
+// 保存分组
+function saveGroup() {
+  const name = document.getElementById('groupNameInput').value.trim();
+  if (!name) {
+    alert('请输入分组名称');
+    return;
+  }
+
+  if (_editingGroupId) {
+    const group = _groups.find(g => g.id === _editingGroupId);
+    if (group) group.name = name;
+  } else {
+    _groups.push({ id: Date.now().toString(), name });
+  }
+
   saveServers();
   renderGroupList();
+  closeGroupModal();
+}
+
+// 关闭分组弹窗
+function closeGroupModal() {
+  document.getElementById('groupModal').style.display = 'none';
+  _editingGroupId = null;
 }
 
 // 删除分组
@@ -247,6 +275,20 @@ function selectGroup(groupId) {
   renderServerList();
 }
 
+// 排序
+let _sortField = null;
+let _sortAsc = true;
+
+function sortServers(field) {
+  if (_sortField === field) {
+    _sortAsc = !_sortAsc;
+  } else {
+    _sortField = field;
+    _sortAsc = true;
+  }
+  renderServerList();
+}
+
 // 渲染服务器列表
 function renderServerList(filter) {
   const container = document.getElementById('serverList');
@@ -267,6 +309,23 @@ function renderServerList(filter) {
       (s.host && s.host.toLowerCase().includes(lower)) ||
       (s.wsUrl && s.wsUrl.toLowerCase().includes(lower))
     );
+  }
+
+  // 排序
+  if (_sortField) {
+    list = [...list].sort((a, b) => {
+      let va, vb;
+      if (_sortField === 'name') {
+        va = (a.name || '').toLowerCase();
+        vb = (b.name || '').toLowerCase();
+      } else if (_sortField === 'addr') {
+        va = (a.host || a.wsUrl || '').toLowerCase();
+        vb = (b.host || b.wsUrl || '').toLowerCase();
+      }
+      if (va < vb) return _sortAsc ? -1 : 1;
+      if (va > vb) return _sortAsc ? 1 : -1;
+      return 0;
+    });
   }
 
   if (list.length === 0) {
@@ -458,18 +517,27 @@ function connectServer(serverId) {
   // WebSocket 事件
   ws.onopen = () => {
     terminal.writeln('\x1b[33mConnecting to ' + server.name + ' (' + host + ')...\x1b[0m');
-    setTimeout(() => {
-      const dims = fitAddon.proposeDimensions();
-      ws.send(JSON.stringify({
-        type: 'connect',
-        host: host,
-        port: server.port || 22,
-        username: server.username,
-        password: server.password,
-        cols: dims?.cols || 120,
-        rows: dims?.rows || 40
-      }));
-    }, 300);
+
+    if (!server.password) {
+      // 没有密码，进入密码输入模式
+      terminal.writeln('\x1b[32m' + server.username + '@' + host + '\x1b[0m');
+      terminal.write('Password: ');
+      conn._waitingPassword = true;
+      conn._passwordBuffer = '';
+    } else {
+      setTimeout(() => {
+        const dims = fitAddon.proposeDimensions();
+        ws.send(JSON.stringify({
+          type: 'connect',
+          host: host,
+          port: server.port || 22,
+          username: server.username,
+          password: server.password,
+          cols: dims?.cols || 120,
+          rows: dims?.rows || 40
+        }));
+      }, 300);
+    }
   };
 
   ws.onmessage = (e) => {
@@ -505,6 +573,13 @@ function connectServer(serverId) {
           if (msg.data && (msg.data.includes('list dir') || msg.data.includes('SFTP') || msg.data.includes('upload'))) {
             const listEl = document.getElementById(`filelist-${connId}`);
             if (listEl) listEl.innerHTML = `<div class="term-file-error">${msg.data}</div>`;
+          } else if (msg.data && msg.data.includes('SSH connect failed')) {
+            // SSH 连接失败（可能是密码错误），提示重新输入
+            terminal.writeln('\x1b[31m' + msg.data + '\x1b[0m');
+            terminal.writeln('');
+            terminal.write('Password: ');
+            conn._waitingPassword = true;
+            conn._passwordBuffer = '';
           } else {
             terminal.writeln('\x1b[31mError: ' + msg.data + '\x1b[0m');
           }
@@ -543,12 +618,47 @@ function connectServer(serverId) {
   };
 
   ws.onclose = () => {
-    try { terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m'); } catch(e) {}
+    try {
+      terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m');
+      terminal.writeln('\x1b[90mPress Enter to reconnect...\x1b[0m');
+    } catch(e) {}
+    // 标记连接已断开，等待用户按回车重连
+    conn._disconnected = true;
   };
 
   // 终端输入
   let _inputBuffer = '';
   terminal.onData((data) => {
+    // 密码输入模式
+    if (conn._waitingPassword) {
+      if (data === '\r' || data === '\n') {
+        terminal.writeln('');
+        const password = conn._passwordBuffer;
+        conn._waitingPassword = false;
+        conn._passwordBuffer = '';
+        // 发送连接请求
+        const dims = fitAddon.proposeDimensions();
+        ws.send(JSON.stringify({
+          type: 'connect',
+          host: host,
+          port: server.port || 22,
+          username: server.username,
+          password: password,
+          cols: dims?.cols || 120,
+          rows: dims?.rows || 40
+        }));
+      } else if (data === '\x7f' || data === '\b') {
+        // 退格
+        if (conn._passwordBuffer.length > 0) {
+          conn._passwordBuffer = conn._passwordBuffer.slice(0, -1);
+        }
+      } else if (data.length === 1 && data >= ' ') {
+        conn._passwordBuffer += data;
+        // 不回显密码
+      }
+      return;
+    }
+
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'input', data }));
 
@@ -571,6 +681,9 @@ function connectServer(serverId) {
         // 粘贴的文本
         _inputBuffer += data;
       }
+    } else if (conn._disconnected && (data === '\r' || data === '\n')) {
+      // 断开后按回车重连
+      reconnect(connId);
     }
   });
 
@@ -612,6 +725,107 @@ function switchTab(tabId) {
   }
 
   renderTabs();
+}
+
+// 重连
+function reconnect(connId) {
+  const conn = _connections.find(c => c.id === connId);
+  if (!conn) return;
+  const server = _servers.find(s => s.id === conn.serverId);
+  if (!server) return;
+
+  conn._disconnected = false;
+  conn.terminal.writeln('\r\n\x1b[33mReconnecting...\x1b[0m');
+
+  const host = server.wsUrl || server.host;
+  const wsUrl = 'ws://localhost:18022/ws';
+
+  let newWs;
+  try {
+    newWs = new WebSocket(wsUrl);
+  } catch (e) {
+    conn.terminal.writeln('\x1b[31mReconnect failed: ' + e.message + '\x1b[0m');
+    conn._disconnected = true;
+    return;
+  }
+
+  // 替换旧的 ws
+  conn.ws = newWs;
+
+  newWs.onopen = () => {
+    setTimeout(() => {
+      const dims = conn.fitAddon.proposeDimensions();
+      newWs.send(JSON.stringify({
+        type: 'connect',
+        host: host,
+        port: server.port || 22,
+        username: server.username,
+        password: server.password,
+        cols: dims?.cols || 120,
+        rows: dims?.rows || 40
+      }));
+    }, 300);
+  };
+
+  newWs.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      switch (msg.type) {
+        case 'connected':
+          conn.terminal.writeln('\x1b[32mReconnected!\x1b[0m\r\n');
+          newWs.send(JSON.stringify({ type: 'getSysInfo' }));
+          break;
+        case 'sysInfo':
+          if (msg.data) {
+            try {
+              const info = JSON.parse(msg.data);
+              if (server) {
+                server._sysInfo = info;
+                saveServers();
+              }
+            } catch(err) {}
+          }
+          break;
+        case 'output':
+          conn.terminal.write(msg.data);
+          break;
+        case 'error':
+          if (msg.data && (msg.data.includes('list dir') || msg.data.includes('SFTP') || msg.data.includes('upload'))) {
+            const listEl = document.getElementById(`filelist-${connId}`);
+            if (listEl) listEl.innerHTML = `<div class="term-file-error">${msg.data}</div>`;
+          } else {
+            conn.terminal.writeln('\x1b[31mError: ' + msg.data + '\x1b[0m');
+          }
+          break;
+        case 'disconnect':
+          conn.terminal.writeln('\r\n\x1b[33m' + (msg.data || 'Disconnected') + '\x1b[0m');
+          break;
+        case 'dirList':
+          renderFileList(connId, msg.path, msg.files || []);
+          break;
+        case 'cwd':
+          if (msg.data) {
+            const currentDisplayPath = document.getElementById(`filepath-${connId}`)?.textContent;
+            if (msg.data !== currentDisplayPath) {
+              newWs.send(JSON.stringify({ type: 'listDir', path: msg.data }));
+            }
+          }
+          break;
+      }
+    } catch (err) {}
+  };
+
+  newWs.onerror = () => {
+    try { conn.terminal.writeln('\x1b[31mWebSocket error\x1b[0m'); } catch(e) {}
+  };
+
+  newWs.onclose = () => {
+    try {
+      conn.terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m');
+      conn.terminal.writeln('\x1b[90mPress Enter to reconnect...\x1b[0m');
+    } catch(e) {}
+    conn._disconnected = true;
+  };
 }
 
 // 关闭连接 tab
@@ -801,13 +1015,8 @@ function uploadFile(connId) {
   };
 }
 
-// 上传单个文件（分片 + 进度）
+// 上传单个文件（通过 HTTP，不阻塞终端）
 function uploadSingleFile(conn, connId, remotePath, file, statusEl) {
-  const chunkSize = 512 * 1024; // 512KB
-  const totalChunks = Math.ceil(file.size / chunkSize);
-  let currentChunk = 0;
-
-  // 显示进度
   const itemId = 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const itemHtml = `<div class="term-upload-item" id="${itemId}">
     <div class="upload-item-info">
@@ -819,49 +1028,56 @@ function uploadSingleFile(conn, connId, remotePath, file, statusEl) {
   </div>`;
   statusEl.insertAdjacentHTML('beforeend', itemHtml);
 
-  const reader = new FileReader();
+  const server = _servers.find(s => s.id === conn.serverId);
+  if (!server) return;
 
-  function readNextChunk() {
-    const start = currentChunk * chunkSize;
-    const end = Math.min(start + chunkSize, file.size);
-    const slice = file.slice(start, end);
-    reader.readAsDataURL(slice);
-  }
+  const host = server.wsUrl || server.host;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('host', host);
+  formData.append('port', String(server.port || 22));
+  formData.append('username', server.username);
+  formData.append('password', server.password);
+  formData.append('path', remotePath);
 
-  reader.onload = () => {
-    const base64 = reader.result.split(',')[1];
-    conn.ws.send(JSON.stringify({
-      type: 'uploadChunk',
-      path: remotePath,
-      fileName: file.name,
-      fileData: base64,
-      data: `${currentChunk}/${totalChunks}`
-    }));
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', 'http://localhost:18022/upload');
 
-    currentChunk++;
-    const percent = Math.round((currentChunk / totalChunks) * 100);
-    const progEl = document.getElementById(`prog-${itemId}`);
-    const pctEl = document.getElementById(`pct-${itemId}`);
-    if (progEl) progEl.style.width = percent + '%';
-    if (pctEl) pctEl.textContent = percent + '%';
-
-    if (currentChunk < totalChunks) {
-      readNextChunk();
-    } else {
-      // 上传完成
-      if (pctEl) pctEl.textContent = '完成';
-      if (progEl) progEl.style.background = '#4caf50';
-      // 3 秒后移除进度条
-      setTimeout(() => {
-        document.getElementById(itemId)?.remove();
-      }, 3000);
-      // 刷新文件列表
-      const curPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
-      conn.ws.send(JSON.stringify({ type: 'listDir', path: curPath }));
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const percent = Math.round((e.loaded / e.total) * 100);
+      const progEl = document.getElementById(`prog-${itemId}`);
+      const pctEl = document.getElementById(`pct-${itemId}`);
+      if (progEl) progEl.style.width = percent + '%';
+      if (pctEl) pctEl.textContent = percent + '%';
     }
   };
 
-  readNextChunk();
+  xhr.onload = () => {
+    const pctEl = document.getElementById(`pct-${itemId}`);
+    const progEl = document.getElementById(`prog-${itemId}`);
+    if (xhr.status === 200) {
+      if (pctEl) pctEl.textContent = '完成';
+      if (progEl) progEl.style.background = '#4caf50';
+      // 刷新文件列表
+      const curPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
+      conn.ws.send(JSON.stringify({ type: 'listDir', path: curPath }));
+    } else {
+      if (pctEl) pctEl.textContent = '失败';
+      if (progEl) progEl.style.background = '#e57373';
+    }
+    setTimeout(() => document.getElementById(itemId)?.remove(), 3000);
+  };
+
+  xhr.onerror = () => {
+    const pctEl = document.getElementById(`pct-${itemId}`);
+    const progEl = document.getElementById(`prog-${itemId}`);
+    if (pctEl) pctEl.textContent = '失败';
+    if (progEl) progEl.style.background = '#e57373';
+    setTimeout(() => document.getElementById(itemId)?.remove(), 3000);
+  };
+
+  xhr.send(formData);
 }
 
 // 文件右键菜单
@@ -1020,6 +1236,9 @@ window.LinkHubTerminal = {
   deleteGroup,
   editGroup,
   selectGroup,
+  sortServers,
+  saveGroup,
+  closeGroupModal,
   ctxEditGroup,
   ctxDeleteGroup
 };

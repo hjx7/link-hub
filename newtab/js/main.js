@@ -84,6 +84,13 @@ function setupEventListeners() {
       e.stopPropagation();
     }
   });
+
+  // 分组弹窗 - 不允许点击遮罩关闭
+  document.getElementById('groupModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'groupModal') {
+      e.stopPropagation();
+    }
+  });
   
   // 确认弹窗点击外部关闭
   document.getElementById('confirmModal').addEventListener('click', (e) => {
@@ -291,8 +298,17 @@ function setupEventListeners() {
       case 'add-group':
         window.LinkHubTerminal?.addGroup();
         break;
+      case 'save-group':
+        window.LinkHubTerminal?.saveGroup();
+        break;
+      case 'close-group-modal':
+        window.LinkHubTerminal?.closeGroupModal();
+        break;
       case 'select-group':
         window.LinkHubTerminal?.selectGroup(actionTarget.dataset.group);
+        break;
+      case 'sort-servers':
+        window.LinkHubTerminal?.sortServers(actionTarget.dataset.field);
         break;
       case 'delete-group':
         e.stopPropagation();
