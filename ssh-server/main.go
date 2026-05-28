@@ -535,6 +535,57 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			safeSend(Message{Type: "renameOk", Data: newPath})
 
+		case "readFile":
+			if sshSession == nil || sshSession.sftpClient == nil {
+				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+				continue
+			}
+			filePath := msg.Path
+			if filePath == "" {
+				safeSend(Message{Type: "error", Data: "readFile: path is empty"})
+				continue
+			}
+			f, err := sshSession.sftpClient.Open(filePath)
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "read file failed: " + err.Error()})
+				continue
+			}
+			stat, _ := f.Stat()
+			// 限制读取大小为 2MB
+			maxSize := int64(2 * 1024 * 1024)
+			size := stat.Size()
+			if size > maxSize {
+				size = maxSize
+			}
+			buf := make([]byte, size)
+			n, _ := f.Read(buf)
+			f.Close()
+			content := string(buf[:n])
+			safeSend(Message{Type: "fileContent", Path: filePath, Data: content})
+
+		case "writeFile":
+			if sshSession == nil || sshSession.sftpClient == nil {
+				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+				continue
+			}
+			filePath := msg.Path
+			if filePath == "" {
+				safeSend(Message{Type: "error", Data: "writeFile: path is empty"})
+				continue
+			}
+			f, err := sshSession.sftpClient.Create(filePath)
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "write file failed: " + err.Error()})
+				continue
+			}
+			_, err = f.Write([]byte(msg.Data))
+			f.Close()
+			if err != nil {
+				safeSend(Message{Type: "error", Data: "write file failed: " + err.Error()})
+				continue
+			}
+			safeSend(Message{Type: "writeFileOk", Path: filePath})
+
 		case "disconnect":
 			if sshSession != nil {
 				sshSession.Close()

@@ -362,6 +362,22 @@ function setupEventListeners() {
       case 'ctx-rename':
         window.LinkHubTerminal?.renameFile();
         break;
+      case 'open-text-file':
+        window.LinkHubTerminal?.openTextFile(actionTarget.dataset.conn, actionTarget.dataset.filepath, actionTarget.dataset.name);
+        break;
+      case 'switch-file-tab':
+        window.LinkHubTerminal?.switchFileTab(actionTarget.dataset.conn, actionTarget.dataset.tabid);
+        break;
+      case 'close-file-tab':
+        e.stopPropagation();
+        window.LinkHubTerminal?.closeFileTab(actionTarget.dataset.conn, actionTarget.dataset.tabid);
+        break;
+      case 'save-file':
+        window.LinkHubTerminal?.saveFile(actionTarget.dataset.conn);
+        break;
+      case 'refresh-file':
+        window.LinkHubTerminal?.refreshFile(actionTarget.dataset.conn);
+        break;
     }
   });
 }

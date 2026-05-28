@@ -478,7 +478,9 @@ function connectServer(serverId) {
         <div class="term-upload-status" id="uploadstatus-${connId}"></div>
       </div>
       <div class="term-splitter" id="splitter-${connId}"></div>
-      <div class="term-terminal-area" id="termarea-${connId}"></div>
+      <div class="term-wrapper" id="termwrapper-${connId}">
+        <div class="term-terminal-area" id="termarea-${connId}"></div>
+      </div>
     </div>
   `;
   document.getElementById('terminalBody').appendChild(termPanel);
@@ -610,6 +612,9 @@ function connectServer(serverId) {
           // 刷新文件列表
           const rPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
           ws.send(JSON.stringify({ type: 'listDir', path: rPath }));
+          break;
+        case 'fileContent':
+          handleFileContent(connId, msg.path, msg.data);
           break;
       }
     } catch (err) {}
@@ -813,6 +818,9 @@ function reconnect(connId) {
             }
           }
           break;
+        case 'fileContent':
+          handleFileContent(connId, msg.path, msg.data);
+          break;
       }
     } catch (err) {}
   };
@@ -851,6 +859,10 @@ function closeConnection(connId) {
     window.removeEventListener('resize', conn._resizeHandler);
   }
 
+  // 清理文件 tab 数据
+  delete _fileTabs[connId];
+  delete _activeFileTab[connId];
+
   _connections.splice(idx, 1);
 
   // 如果关闭的是当前 tab，切回服务器列表
@@ -887,6 +899,35 @@ function renderTabs() {
 
 // 渲染文件列表
 let _filePages = {}; // 每个连接的当前页码
+
+// 判断文件是否可编辑（纯文本类型）
+const _editableExtensions = new Set([
+  '.txt', '.log', '.md', '.csv', '.tsv',
+  '.sh', '.bash', '.zsh', '.fish', '.bat', '.cmd', '.ps1',
+  '.py', '.js', '.ts', '.go', '.java', '.c', '.cpp', '.h', '.hpp',
+  '.rs', '.rb', '.php', '.pl', '.lua', '.swift', '.kt', '.scala',
+  '.r', '.m', '.cs', '.vb', '.dart', '.ex', '.exs', '.hs', '.ml',
+  '.conf', '.cfg', '.ini', '.yaml', '.yml', '.toml', '.json', '.xml',
+  '.env', '.properties', '.plist', '.htaccess',
+  '.html', '.htm', '.css', '.scss', '.less', '.vue', '.jsx', '.tsx', '.svelte',
+  '.sql',
+  '.service', '.timer', '.socket', '.mount', '.target',
+  '.nginx', '.dockerfile',
+  '.gitignore', '.editorconfig', '.eslintrc', '.prettierrc',
+  '.makefile', '.cmake', '.gradle', '.sbt',
+]);
+
+function isEditableFile(fileName) {
+  if (!fileName) return false;
+  const lower = fileName.toLowerCase();
+  const dotIdx = lower.lastIndexOf('.');
+  if (dotIdx === -1) {
+    const noExtNames = ['makefile', 'dockerfile', 'vagrantfile', 'gemfile', 'rakefile', 'procfile', 'readme', 'license', 'changelog', 'authors', 'todo'];
+    return noExtNames.includes(lower);
+  }
+  const ext = lower.substring(dotIdx);
+  return _editableExtensions.has(ext);
+}
 
 function renderFileList(connId, path, files) {
   const pathEl = document.getElementById(`filepath-${connId}`);
@@ -938,7 +979,9 @@ function renderFileList(connId, path, files) {
         <span class="term-file-size">${size}</span>
       </div>`;
     } else {
-      html += `<div class="term-file-item" data-name="${escapeHtml(f.name)}" data-isdir="false" data-filepath="${itemPath}" data-conn="${connId}">
+      const editable = isEditableFile(f.name);
+      const fileAction = editable ? 'data-action="open-text-file"' : '';
+      html += `<div class="term-file-item ${editable ? 'term-file-clickable' : ''}" ${fileAction} data-name="${escapeHtml(f.name)}" data-isdir="false" data-filepath="${itemPath}" data-conn="${connId}">
         <span class="term-file-icon">${icon}</span>
         <span class="term-file-name">${escapeHtml(f.name)}</span>
         <span class="term-file-size">${size}</span>
@@ -1303,6 +1346,262 @@ function escapeHtml(str) {
 // DOM 加载后初始化
 document.addEventListener('DOMContentLoaded', initTerminal);
 
+// ========== 文件查看器功能 ==========
+let _fileTabs = {};
+let _activeFileTab = {};
+
+function openTextFile(connId, filePath, fileName) {
+  const conn = _connections.find(c => c.id === connId);
+  if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
+
+  if (!_fileTabs[connId]) _fileTabs[connId] = [];
+
+  const existing = _fileTabs[connId].find(t => t.path === filePath);
+  if (existing) {
+    _activeFileTab[connId] = existing.id;
+    renderFileViewer(connId);
+    return;
+  }
+
+  conn.ws.send(JSON.stringify({ type: 'readFile', path: filePath }));
+
+  const tabId = 'ftab_' + Date.now();
+  _fileTabs[connId].push({ id: tabId, name: fileName, path: filePath, content: null, loading: true, modified: false });
+  _activeFileTab[connId] = tabId;
+  renderFileViewer(connId);
+}
+
+function handleFileContent(connId, filePath, content) {
+  if (!_fileTabs[connId]) return;
+  const tab = _fileTabs[connId].find(t => t.path === filePath);
+  if (tab) {
+    tab.content = content;
+    tab.loading = false;
+    renderFileViewer(connId);
+  }
+}
+
+function closeFileTab(connId, tabId) {
+  if (!_fileTabs[connId]) return;
+  const idx = _fileTabs[connId].findIndex(t => t.id === tabId);
+  if (idx === -1) return;
+
+  _fileTabs[connId].splice(idx, 1);
+
+  if (_activeFileTab[connId] === tabId) {
+    if (_fileTabs[connId].length > 0) {
+      const newIdx = Math.min(idx, _fileTabs[connId].length - 1);
+      _activeFileTab[connId] = _fileTabs[connId][newIdx].id;
+    } else {
+      _activeFileTab[connId] = null;
+    }
+  }
+
+  renderFileViewer(connId);
+}
+
+function switchFileTab(connId, tabId) {
+  const currentTabId = _activeFileTab[connId];
+  if (currentTabId && _fileTabs[connId]) {
+    const currentTab = _fileTabs[connId].find(t => t.id === currentTabId);
+    const editor = document.getElementById(`fveditor-${connId}`);
+    if (currentTab && editor && !currentTab.loading) {
+      currentTab.content = editor.value;
+    }
+  }
+
+  _activeFileTab[connId] = tabId;
+  renderFileViewer(connId);
+}
+
+function renderFileViewer(connId) {
+  const panel = document.getElementById(`panel-${connId}`);
+  if (!panel) return;
+
+  const tabs = _fileTabs[connId] || [];
+  const termArea = document.getElementById(`termarea-${connId}`);
+  let viewerContainer = document.getElementById(`fileviewer-${connId}`);
+  let hSplitter = document.getElementById(`hsplitter-${connId}`);
+
+  if (tabs.length === 0) {
+    if (viewerContainer) viewerContainer.remove();
+    if (hSplitter) hSplitter.remove();
+    if (termArea) termArea.style.flex = '1';
+    const conn = _connections.find(c => c.id === connId);
+    if (conn) setTimeout(() => conn.fitAddon.fit(), 50);
+    return;
+  }
+
+  const termWrapper = document.getElementById(`termwrapper-${connId}`);
+  if (!termWrapper) return;
+
+  if (!viewerContainer) {
+    viewerContainer = document.createElement('div');
+    viewerContainer.id = `fileviewer-${connId}`;
+    viewerContainer.className = 'term-file-viewer';
+    termWrapper.insertBefore(viewerContainer, termWrapper.firstChild);
+
+    hSplitter = document.createElement('div');
+    hSplitter.id = `hsplitter-${connId}`;
+    hSplitter.className = 'term-hsplitter';
+    termWrapper.insertBefore(hSplitter, termArea);
+
+    initHSplitter(connId);
+  }
+
+  const activeTabId = _activeFileTab[connId];
+  const activeTab = tabs.find(t => t.id === activeTabId);
+
+  let tabsHtml = tabs.map(t => {
+    const modified = t.modified ? ' modified' : '';
+    return `<div class="fv-tab ${t.id === activeTabId ? 'active' : ''}${modified}" data-action="switch-file-tab" data-conn="${connId}" data-tabid="${t.id}">
+      <span class="fv-tab-name" title="${escapeHtml(t.path)}">${escapeHtml(t.name)}${t.modified ? ' \u25cf' : ''}</span>
+      <button class="fv-tab-close" data-action="close-file-tab" data-conn="${connId}" data-tabid="${t.id}">\u00d7</button>
+    </div>`;
+  }).join('');
+
+  let contentHtml = '';
+  if (activeTab) {
+    if (activeTab.loading) {
+      contentHtml = '<div class="fv-loading">\u52a0\u8f7d\u4e2d...</div>';
+    } else {
+      contentHtml = `<textarea class="fv-editor" id="fveditor-${connId}" spellcheck="false">${escapeHtml(activeTab.content || '')}</textarea>`;
+    }
+  }
+
+  viewerContainer.innerHTML = `
+    <div class="fv-tabs">${tabsHtml}</div>
+    <div class="fv-toolbar">
+      <button class="fv-toolbar-btn" data-action="save-file" data-conn="${connId}" title="\u4fdd\u5b58 (Ctrl+S)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      </button>
+      <button class="fv-toolbar-btn" data-action="refresh-file" data-conn="${connId}" title="\u5237\u65b0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+    </div>
+    <div class="fv-body">${contentHtml}</div>
+  `;
+
+  const editor = document.getElementById(`fveditor-${connId}`);
+  if (editor && activeTab && !activeTab.loading) {
+    editor.addEventListener('input', () => {
+      if (activeTab && !activeTab.modified) {
+        activeTab.modified = true;
+        const tabEl = viewerContainer.querySelector('.fv-tab.active .fv-tab-name');
+        if (tabEl && !tabEl.textContent.endsWith(' \u25cf')) {
+          tabEl.textContent = activeTab.name + ' \u25cf';
+        }
+        const tabDiv = viewerContainer.querySelector('.fv-tab.active');
+        if (tabDiv) tabDiv.classList.add('modified');
+      }
+    });
+
+    editor.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveFile(connId);
+      }
+    });
+  }
+
+  const conn = _connections.find(c => c.id === connId);
+  if (conn) setTimeout(() => conn.fitAddon.fit(), 50);
+}
+
+function saveFile(connId) {
+  const conn = _connections.find(c => c.id === connId);
+  if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
+
+  const activeTabId = _activeFileTab[connId];
+  if (!activeTabId || !_fileTabs[connId]) return;
+  const tab = _fileTabs[connId].find(t => t.id === activeTabId);
+  if (!tab) return;
+
+  const editor = document.getElementById(`fveditor-${connId}`);
+  if (!editor) return;
+
+  const content = editor.value;
+  conn.ws.send(JSON.stringify({ type: 'writeFile', path: tab.path, data: content }));
+
+  tab.content = content;
+  tab.modified = false;
+
+  const viewerContainer = document.getElementById(`fileviewer-${connId}`);
+  if (viewerContainer) {
+    const tabEl = viewerContainer.querySelector('.fv-tab.active .fv-tab-name');
+    if (tabEl) tabEl.textContent = tab.name;
+    const tabDiv = viewerContainer.querySelector('.fv-tab.active');
+    if (tabDiv) tabDiv.classList.remove('modified');
+  }
+
+  showFileToast('\u4fdd\u5b58\u6210\u529f');
+}
+
+function refreshFile(connId) {
+  const conn = _connections.find(c => c.id === connId);
+  if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
+
+  const activeTabId = _activeFileTab[connId];
+  if (!activeTabId || !_fileTabs[connId]) return;
+  const tab = _fileTabs[connId].find(t => t.id === activeTabId);
+  if (!tab) return;
+
+  if (tab.modified) {
+    if (!confirm('\u6587\u4ef6\u5df2\u4fee\u6539\uff0c\u5237\u65b0\u5c06\u4e22\u5931\u672a\u4fdd\u5b58\u7684\u66f4\u6539\uff0c\u786e\u5b9a\u5237\u65b0\uff1f')) return;
+  }
+
+  tab.loading = true;
+  tab.modified = false;
+  renderFileViewer(connId);
+  conn.ws.send(JSON.stringify({ type: 'readFile', path: tab.path }));
+}
+
+function showFileToast(msg) {
+  const toast = document.createElement('div');
+  toast.className = 'fv-toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1500);
+}
+
+function initHSplitter(connId) {
+  const hSplitter = document.getElementById(`hsplitter-${connId}`);
+  const viewer = document.getElementById(`fileviewer-${connId}`);
+  const termWrapper = document.getElementById(`termwrapper-${connId}`);
+  if (!hSplitter || !viewer || !termWrapper) return;
+
+  let isDragging = false;
+
+  hSplitter.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    e.preventDefault();
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const rect = termWrapper.getBoundingClientRect();
+    const newHeight = e.clientY - rect.top;
+    const minH = 100;
+    const maxH = rect.height - 150;
+    if (newHeight >= minH && newHeight <= maxH) {
+      viewer.style.height = newHeight + 'px';
+      viewer.style.flex = 'none';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      const conn = _connections.find(c => c.id === connId);
+      if (conn) conn.fitAddon.fit();
+    }
+  });
+}
+
 // 暴露到全局
 window.LinkHubTerminal = {
   connectServer,
@@ -1327,5 +1626,10 @@ window.LinkHubTerminal = {
   saveGroup,
   closeGroupModal,
   ctxEditGroup,
-  ctxDeleteGroup
+  ctxDeleteGroup,
+  openTextFile,
+  closeFileTab,
+  switchFileTab,
+  saveFile,
+  refreshFile
 };

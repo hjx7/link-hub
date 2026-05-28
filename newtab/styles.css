@@ -3997,6 +3997,7 @@ select.srv-input option:checked {
 .term-terminal-area {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -4380,4 +4381,253 @@ select.srv-input option:checked {
   outline: 2px dashed #4a9eff;
   outline-offset: -2px;
   background: rgba(74, 158, 255, 0.05);
+}
+
+/* 终端右侧 wrapper（包含文件查看器 + 终端） */
+.term-wrapper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 文件查看器 */
+.term-file-viewer {
+  height: 40%;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  overflow: hidden;
+}
+
+.fv-tabs {
+  display: flex;
+  gap: 1px;
+  padding: 0 8px;
+  background: #252525;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  border-bottom: 1px solid #333;
+}
+
+.fv-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.fv-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #2d2d2d;
+  cursor: pointer;
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  transition: background 0.1s;
+  border-top: 2px solid transparent;
+}
+
+.fv-tab:hover {
+  background: #3c3c3c;
+  color: #ccc;
+}
+
+.fv-tab.active {
+  background: #1e1e1e;
+  color: #fff;
+  border-top-color: #4a9eff;
+}
+
+.fv-tab-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fv-tab-close {
+  border: none;
+  background: none;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+.fv-tab-close:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}
+
+.fv-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+  background: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+}
+
+.fv-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.fv-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fv-body::-webkit-scrollbar-thumb {
+  background: #3c4043;
+  border-radius: 4px;
+}
+
+.fv-body::-webkit-scrollbar-thumb:hover {
+  background: #5f6368;
+}
+
+/* 文件查看器工具栏 */
+.fv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.fv-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #555;
+  background: #2d2d2d;
+  color: #ccc;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.fv-toolbar-btn:hover {
+  background: #3c3c3c;
+  border-color: #7cb8ff;
+  color: #fff;
+}
+
+.fv-toolbar-btn svg {
+  flex-shrink: 0;
+}
+
+/* 文件编辑器 */
+.fv-editor {
+  flex: 1;
+  width: 100%;
+  margin: 0;
+  padding: 12px 16px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #d4d4d4;
+  background: #1a1a1a;
+  border: none;
+  outline: none;
+  resize: none;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+}
+
+.fv-editor::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.fv-editor::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fv-editor::-webkit-scrollbar-thumb {
+  background: #3c4043;
+  border-radius: 4px;
+}
+
+.fv-editor::-webkit-scrollbar-thumb:hover {
+  background: #5f6368;
+}
+
+/* 修改标记 */
+.fv-tab.modified .fv-tab-name {
+  color: #fdd663;
+}
+
+/* 保存成功提示 */
+.fv-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #333;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 9999;
+  animation: fvToastFade 1.5s ease-out forwards;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+@keyframes fvToastFade {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+.fv-content {
+  margin: 0;
+  padding: 12px 16px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #d4d4d4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+}
+
+.fv-loading {
+  padding: 20px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}
+
+/* 水平分割条（上下分割） */
+.term-hsplitter {
+  height: 4px;
+  background: #333;
+  cursor: row-resize;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+
+.term-hsplitter:hover {
+  background: #4a9eff;
+}
+
+/* txt 文件可点击样式 */
+.term-file-item.term-file-clickable {
+  color: #7cb8ff;
+}
+
+.term-file-item.term-file-clickable:hover {
+  background: #2d3748;
 }
