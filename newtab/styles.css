@@ -4119,18 +4119,16 @@ select.srv-input option:checked {
 
 .term-upload-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
   border-bottom: 1px solid #2a2a2a;
 }
 
 .upload-item-info {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .upload-item-name {
@@ -4139,6 +4137,26 @@ select.srv-input option:checked {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.upload-item-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.upload-item-percent {
+  font-size: 11px;
+  color: #eee;
+}
+
+.upload-item-speed {
+  font-size: 10px;
+  color: #888;
 }
 
 .upload-item-size {
@@ -4160,13 +4178,6 @@ select.srv-input option:checked {
   background: #4a9eff;
   border-radius: 2px;
   transition: width 0.2s;
-}
-
-.upload-item-percent {
-  font-size: 11px;
-  color: #888;
-  min-width: 32px;
-  text-align: right;
 }
 
 /* 终端分割条 */
@@ -4362,4 +4373,11 @@ select.srv-input option:checked {
   flex-direction: column;
   align-items: center;
   gap: 0;
+}
+
+/* 拖拽上传 */
+.term-file-panel.drag-over {
+  outline: 2px dashed #4a9eff;
+  outline-offset: -2px;
+  background: rgba(74, 158, 255, 0.05);
 }

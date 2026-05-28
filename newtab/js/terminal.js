@@ -469,6 +469,7 @@ function connectServer(serverId) {
       <div class="term-file-panel" id="files-${connId}">
         <div class="term-file-header">
           <span class="term-file-path" id="filepath-${connId}">/</span>
+          <button class="term-file-btn" data-action="refresh-files" data-conn="${connId}" title="刷新"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
           <button class="term-file-btn" data-action="upload-file" data-conn="${connId}" title="上传文件"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
           <input type="file" id="fileInput-${connId}" style="display:none" multiple>
         </div>
@@ -513,6 +514,9 @@ function connectServer(serverId) {
 
   // 初始化分割条拖动
   initTermSplitter(connId, fitAddon);
+
+  // 初始化拖拽上传
+  initDragUpload(connId);
 
   // WebSocket 事件
   ws.onopen = () => {
@@ -574,12 +578,10 @@ function connectServer(serverId) {
             const listEl = document.getElementById(`filelist-${connId}`);
             if (listEl) listEl.innerHTML = `<div class="term-file-error">${msg.data}</div>`;
           } else if (msg.data && msg.data.includes('SSH connect failed')) {
-            // SSH 连接失败（可能是密码错误），提示重新输入
+            // 连接失败，显示错误并允许重试
             terminal.writeln('\x1b[31m' + msg.data + '\x1b[0m');
-            terminal.writeln('');
-            terminal.write('Password: ');
-            conn._waitingPassword = true;
-            conn._passwordBuffer = '';
+            terminal.writeln('\x1b[90mPress Enter to retry...\x1b[0m');
+            conn._disconnected = true;
           } else {
             terminal.writeln('\x1b[31mError: ' + msg.data + '\x1b[0m');
           }
@@ -1015,16 +1017,18 @@ function uploadFile(connId) {
   };
 }
 
-// 上传单个文件（通过 HTTP，不阻塞终端）
+// 上传单个文件（分片上传，真实进度）
 function uploadSingleFile(conn, connId, remotePath, file, statusEl) {
   const itemId = 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const itemHtml = `<div class="term-upload-item" id="${itemId}">
     <div class="upload-item-info">
       <span class="upload-item-name">${escapeHtml(file.name)}</span>
-      <span class="upload-item-size">${formatFileSize(file.size)}</span>
+      <div class="upload-item-stats">
+        <span class="upload-item-percent" id="pct-${itemId}">0%</span>
+        <span class="upload-item-speed" id="spd-${itemId}">--</span>
+      </div>
     </div>
     <div class="upload-item-bar"><div class="upload-item-progress" id="prog-${itemId}"></div></div>
-    <span class="upload-item-percent" id="pct-${itemId}">0%</span>
   </div>`;
   statusEl.insertAdjacentHTML('beforeend', itemHtml);
 
@@ -1032,52 +1036,98 @@ function uploadSingleFile(conn, connId, remotePath, file, statusEl) {
   if (!server) return;
 
   const host = server.wsUrl || server.host;
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('host', host);
-  formData.append('port', String(server.port || 22));
-  formData.append('username', server.username);
-  formData.append('password', server.password);
-  formData.append('path', remotePath);
+  const chunkSize = 1024 * 1024; // 1MB per chunk
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  let currentChunk = 0;
+  let failed = false;
+  let startTime = Date.now();
+  let lastTime = startTime;
+  let lastBytes = 0;
 
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', 'http://localhost:18022/upload');
-
-  xhr.upload.onprogress = (e) => {
-    if (e.lengthComputable) {
-      const percent = Math.round((e.loaded / e.total) * 100);
-      const progEl = document.getElementById(`prog-${itemId}`);
+  function uploadNextChunk() {
+    if (failed) return;
+    if (currentChunk >= totalChunks) {
+      // 全部上传完成
       const pctEl = document.getElementById(`pct-${itemId}`);
-      if (progEl) progEl.style.width = percent + '%';
-      if (pctEl) pctEl.textContent = percent + '%';
-    }
-  };
-
-  xhr.onload = () => {
-    const pctEl = document.getElementById(`pct-${itemId}`);
-    const progEl = document.getElementById(`prog-${itemId}`);
-    if (xhr.status === 200) {
-      if (pctEl) pctEl.textContent = '完成';
+      const progEl = document.getElementById(`prog-${itemId}`);
+      if (pctEl) { pctEl.textContent = '完成'; pctEl.style.color = '#4caf50'; }
       if (progEl) progEl.style.background = '#4caf50';
+      setTimeout(() => document.getElementById(itemId)?.remove(), 5000);
       // 刷新文件列表
-      const curPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
-      conn.ws.send(JSON.stringify({ type: 'listDir', path: curPath }));
-    } else {
-      if (pctEl) pctEl.textContent = '失败';
-      if (progEl) progEl.style.background = '#e57373';
+      setTimeout(() => {
+        const curPath = document.getElementById(`filepath-${connId}`)?.textContent || '.';
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.send(JSON.stringify({ type: 'listDir', path: curPath }));
+        }
+      }, 500);
+      return;
     }
-    setTimeout(() => document.getElementById(itemId)?.remove(), 3000);
-  };
 
-  xhr.onerror = () => {
-    const pctEl = document.getElementById(`pct-${itemId}`);
-    const progEl = document.getElementById(`prog-${itemId}`);
-    if (pctEl) pctEl.textContent = '失败';
-    if (progEl) progEl.style.background = '#e57373';
-    setTimeout(() => document.getElementById(itemId)?.remove(), 3000);
-  };
+    const start = currentChunk * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
 
-  xhr.send(formData);
+    const formData = new FormData();
+    formData.append('file', chunk, file.name);
+    formData.append('host', host);
+    formData.append('port', String(server.port || 22));
+    formData.append('username', server.username);
+    formData.append('password', server.password);
+    formData.append('path', remotePath);
+    formData.append('chunk', String(currentChunk));
+    formData.append('totalChunks', String(totalChunks));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'http://localhost:18022/upload');
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        currentChunk++;
+        const uploadedBytes = currentChunk * chunkSize;
+        const percent = Math.round((currentChunk / totalChunks) * 100);
+
+        // 计算速率
+        const now = Date.now();
+        const elapsed = (now - lastTime) / 1000;
+        const bytesThisChunk = chunkSize;
+        let speed = '';
+        if (elapsed > 0) {
+          const bps = bytesThisChunk / elapsed;
+          speed = formatFileSize(Math.round(bps)) + '/s';
+        }
+        lastTime = now;
+        lastBytes = uploadedBytes;
+
+        const progEl = document.getElementById(`prog-${itemId}`);
+        const pctEl = document.getElementById(`pct-${itemId}`);
+        const spdEl = document.getElementById(`spd-${itemId}`);
+        if (progEl) progEl.style.width = percent + '%';
+        if (pctEl) pctEl.textContent = percent + '%';
+        if (spdEl) spdEl.textContent = speed;
+        uploadNextChunk();
+      } else {
+        failed = true;
+        const pctEl = document.getElementById(`pct-${itemId}`);
+        const progEl = document.getElementById(`prog-${itemId}`);
+        if (pctEl) { pctEl.textContent = '失败'; pctEl.style.color = '#e57373'; }
+        if (progEl) progEl.style.background = '#e57373';
+        setTimeout(() => document.getElementById(itemId)?.remove(), 5000);
+      }
+    };
+
+    xhr.onerror = () => {
+      failed = true;
+      const pctEl = document.getElementById(`pct-${itemId}`);
+      const progEl = document.getElementById(`prog-${itemId}`);
+      if (pctEl) { pctEl.textContent = '失败'; pctEl.style.color = '#e57373'; }
+      if (progEl) progEl.style.background = '#e57373';
+      setTimeout(() => document.getElementById(itemId)?.remove(), 5000);
+    };
+
+    xhr.send(formData);
+  }
+
+  uploadNextChunk();
 }
 
 // 文件右键菜单
@@ -1202,6 +1252,43 @@ function initTermSplitter(connId, fitAddon) {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       fitAddon.fit();
+    }
+  });
+}
+
+// 拖拽上传
+function initDragUpload(connId) {
+  const filePanel = document.getElementById(`files-${connId}`);
+  if (!filePanel) return;
+
+  filePanel.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    filePanel.classList.add('drag-over');
+  });
+
+  filePanel.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    filePanel.classList.remove('drag-over');
+  });
+
+  filePanel.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    filePanel.classList.remove('drag-over');
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const conn = _connections.find(c => c.id === connId);
+    if (!conn || conn.ws.readyState !== WebSocket.OPEN) return;
+
+    const path = document.getElementById(`filepath-${connId}`)?.textContent || '.';
+    const statusEl = document.getElementById(`uploadstatus-${connId}`);
+
+    for (const file of files) {
+      uploadSingleFile(conn, connId, path, file, statusEl);
     }
   });
 }

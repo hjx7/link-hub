@@ -410,6 +410,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					dirPath = "/"
 				}
 			}
+			// 解析为绝对路径（处理 .. 等相对路径）
+			absPath, err := sshSession.sftpClient.RealPath(dirPath)
+			if err == nil && absPath != "" {
+				dirPath = absPath
+			}
 			entries, err := sshSession.sftpClient.ReadDir(dirPath)
 			if err != nil {
 				log.Printf("[sftp] ReadDir failed for %q: %v", dirPath, err)
@@ -808,7 +813,84 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HTTP 上传处理
+// 上传会话管理
+var uploadSessions = struct {
+	sync.Mutex
+	sessions map[string]*uploadSession
+}{sessions: make(map[string]*uploadSession)}
+
+type uploadSession struct {
+	client     *ssh.Client
+	sftpClient *sftp.Client
+	file       *sftp.File
+	lastAccess time.Time
+}
+
+func getUploadSession(host string, port int, username, password, remoteFile string, isFirst bool) (*uploadSession, error) {
+	key := fmt.Sprintf("%s:%d:%s:%s", host, port, username, remoteFile)
+
+	uploadSessions.Lock()
+	defer uploadSessions.Unlock()
+
+	if isFirst {
+		// 关闭旧的同名会话
+		if old, ok := uploadSessions.sessions[key]; ok {
+			old.file.Close()
+			old.sftpClient.Close()
+			old.client.Close()
+			delete(uploadSessions.sessions, key)
+		}
+
+		// 建立新连接
+		config := &ssh.ClientConfig{
+			User:            username,
+			Auth:            []ssh.AuthMethod{ssh.Password(password)},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         10 * time.Second,
+		}
+		addr := fmt.Sprintf("%s:%d", host, port)
+		client, err := ssh.Dial("tcp", addr, config)
+		if err != nil {
+			return nil, err
+		}
+		sftpClient, err := sftp.NewClient(client)
+		if err != nil {
+			client.Close()
+			return nil, err
+		}
+		f, err := sftpClient.Create(remoteFile)
+		if err != nil {
+			sftpClient.Close()
+			client.Close()
+			return nil, err
+		}
+		sess := &uploadSession{client: client, sftpClient: sftpClient, file: f, lastAccess: time.Now()}
+		uploadSessions.sessions[key] = sess
+		return sess, nil
+	}
+
+	// 复用已有会话
+	sess, ok := uploadSessions.sessions[key]
+	if !ok {
+		return nil, fmt.Errorf("upload session not found")
+	}
+	sess.lastAccess = time.Now()
+	return sess, nil
+}
+
+func closeUploadSession(host string, port int, username, remoteFile string) {
+	key := fmt.Sprintf("%s:%d:%s:%s", host, port, username, remoteFile)
+	uploadSessions.Lock()
+	defer uploadSessions.Unlock()
+	if sess, ok := uploadSessions.sessions[key]; ok {
+		sess.file.Close()
+		sess.sftpClient.Close()
+		sess.client.Close()
+		delete(uploadSessions.sessions, key)
+	}
+}
+
+// HTTP 上传处理（分片，复用连接）
 func handleUpload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -824,14 +906,15 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 限制上传大小 2GB
-	r.ParseMultipartForm(2 << 30)
+	r.ParseMultipartForm(10 << 20)
 
 	host := r.FormValue("host")
 	portStr := r.FormValue("port")
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 	remotePath := r.FormValue("path")
+	chunkStr := r.FormValue("chunk")
+	totalChunksStr := r.FormValue("totalChunks")
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -845,52 +928,39 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(portStr, "%d", &sshPort)
 	}
 
-	// 建立 SSH + SFTP 连接
-	config := &ssh.ClientConfig{
-		User:            username,
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
+	chunk := 0
+	fmt.Sscanf(chunkStr, "%d", &chunk)
+	totalChunks := 1
+	fmt.Sscanf(totalChunksStr, "%d", &totalChunks)
 
-	addr := fmt.Sprintf("%s:%d", host, sshPort)
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		http.Error(w, "SSH connect failed: "+err.Error(), 500)
-		return
-	}
-	defer client.Close()
-
-	sftpClient, err := sftp.NewClient(client)
-	if err != nil {
-		http.Error(w, "SFTP failed: "+err.Error(), 500)
-		return
-	}
-	defer sftpClient.Close()
-
-	// 创建远程文件
 	remoteFile := remotePath + "/" + header.Filename
-	f, err := sftpClient.Create(remoteFile)
+
+	// 获取或创建上传会话
+	sess, err := getUploadSession(host, sshPort, username, password, remoteFile, chunk == 0)
 	if err != nil {
-		http.Error(w, "create file failed: "+err.Error(), 500)
+		http.Error(w, "upload session failed: "+err.Error(), 500)
 		return
 	}
-	defer f.Close()
 
-	// 流式写入
+	// 写入数据
 	buf := make([]byte, 64*1024)
 	for {
-		n, err := file.Read(buf)
+		n, readErr := file.Read(buf)
 		if n > 0 {
-			f.Write(buf[:n])
+			sess.file.Write(buf[:n])
 		}
-		if err != nil {
+		if readErr != nil {
 			break
 		}
 	}
 
+	// 最后一片，关闭会话
+	if chunk >= totalChunks-1 {
+		closeUploadSession(host, sshPort, username, remoteFile)
+	}
+
 	w.WriteHeader(200)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "path": remoteFile})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "chunk": chunkStr})
 }
 
 func splitPath(path string) []string {
