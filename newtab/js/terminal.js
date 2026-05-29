@@ -466,11 +466,13 @@ function connectServer(serverId) {
   termPanel.className = 'terminal-panel';
   termPanel.innerHTML = `
     <div class="term-layout">
+      <button class="term-file-toggle" id="filetoggle-${connId}" data-action="toggle-file-panel" data-conn="${connId}" title="\u6253\u5f00\u6587\u4ef6\u5217\u8868"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg></button>
       <div class="term-file-panel" id="files-${connId}">
         <div class="term-file-header">
           <span class="term-file-path" id="filepath-${connId}">/</span>
-          <button class="term-file-btn" data-action="refresh-files" data-conn="${connId}" title="刷新"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
-          <button class="term-file-btn" data-action="upload-file" data-conn="${connId}" title="上传文件"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+          <button class="term-file-btn" data-action="refresh-files" data-conn="${connId}" title="\u5237\u65b0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+          <button class="term-file-btn" data-action="upload-file" data-conn="${connId}" title="\u4e0a\u4f20\u6587\u4ef6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+          <button class="term-file-btn" data-action="toggle-file-panel" data-conn="${connId}" title="\u9690\u85cf\u6587\u4ef6\u5217\u8868"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg></button>
           <input type="file" id="fileInput-${connId}" style="display:none" multiple>
         </div>
         <div class="term-file-pager-top" id="filepager-${connId}"></div>
@@ -495,7 +497,24 @@ function connectServer(serverId) {
       background: '#111111',
       foreground: '#d4d4d4',
       cursor: '#ffffff',
-      selectionBackground: '#264f78'
+      cursorAccent: '#111111',
+      selectionBackground: '#264f78',
+      black: '#1e1e1e',
+      red: '#f44747',
+      green: '#6a9955',
+      yellow: '#d7ba7d',
+      blue: '#569cd6',
+      magenta: '#c586c0',
+      cyan: '#4ec9b0',
+      white: '#d4d4d4',
+      brightBlack: '#808080',
+      brightRed: '#f44747',
+      brightGreen: '#73c991',
+      brightYellow: '#e5c07b',
+      brightBlue: '#61afef',
+      brightMagenta: '#d16d9e',
+      brightCyan: '#56d4bc',
+      brightWhite: '#ffffff'
     }
   });
 
@@ -552,6 +571,7 @@ function connectServer(serverId) {
       switch (msg.type) {
         case 'connected':
           terminal.writeln('\x1b[32mConnected!\x1b[0m\r\n');
+          conn._reconnectAttempts = 0;
           // 文件列表会由 Go 端 SFTP 准备好后自动推送
           // 请求系统信息
           ws.send(JSON.stringify({ type: 'getSysInfo' }));
@@ -590,6 +610,21 @@ function connectServer(serverId) {
           break;
         case 'disconnect':
           terminal.writeln('\r\n\x1b[33m' + (msg.data || 'Disconnected') + '\x1b[0m');
+          terminal.writeln('\x1b[90mAuto-reconnecting in 3s... (Press Enter to reconnect now)\x1b[0m');
+          conn._disconnected = true;
+          // 自动重连
+          if (!conn._autoReconnectTimer) {
+            conn._reconnectAttempts = (conn._reconnectAttempts || 0) + 1;
+            if (conn._reconnectAttempts <= 3) {
+              conn._autoReconnectTimer = setTimeout(() => {
+                conn._autoReconnectTimer = null;
+                if (conn._disconnected) reconnect(connId);
+              }, 3000);
+            } else {
+              terminal.writeln('\x1b[31mAuto-reconnect failed after 3 attempts.\x1b[0m');
+              terminal.writeln('\x1b[90mPress Enter to try again.\x1b[0m');
+            }
+          }
           break;
         case 'dirList':
           renderFileList(connId, msg.path, msg.files || []);
@@ -627,10 +662,19 @@ function connectServer(serverId) {
   ws.onclose = () => {
     try {
       terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m');
-      terminal.writeln('\x1b[90mPress Enter to reconnect...\x1b[0m');
+      terminal.writeln('\x1b[90mAuto-reconnecting in 3s... (Press Enter to reconnect now)\x1b[0m');
     } catch(e) {}
-    // 标记连接已断开，等待用户按回车重连
     conn._disconnected = true;
+    // 自动重连
+    if (!conn._autoReconnectTimer) {
+      conn._reconnectAttempts = (conn._reconnectAttempts || 0) + 1;
+      if (conn._reconnectAttempts <= 3) {
+        conn._autoReconnectTimer = setTimeout(() => {
+          conn._autoReconnectTimer = null;
+          if (conn._disconnected) reconnect(connId);
+        }, 3000);
+      }
+    }
   };
 
   // 终端输入
@@ -690,6 +734,11 @@ function connectServer(serverId) {
       }
     } else if (conn._disconnected && (data === '\r' || data === '\n')) {
       // 断开后按回车重连
+      if (conn._autoReconnectTimer) {
+        clearTimeout(conn._autoReconnectTimer);
+        conn._autoReconnectTimer = null;
+      }
+      conn._reconnectAttempts = 0;
       reconnect(connId);
     }
   });
@@ -780,6 +829,7 @@ function reconnect(connId) {
       switch (msg.type) {
         case 'connected':
           conn.terminal.writeln('\x1b[32mReconnected!\x1b[0m\r\n');
+          conn._reconnectAttempts = 0;
           newWs.send(JSON.stringify({ type: 'getSysInfo' }));
           break;
         case 'sysInfo':
@@ -806,6 +856,20 @@ function reconnect(connId) {
           break;
         case 'disconnect':
           conn.terminal.writeln('\r\n\x1b[33m' + (msg.data || 'Disconnected') + '\x1b[0m');
+          conn.terminal.writeln('\x1b[90mAuto-reconnecting in 3s... (Press Enter to reconnect now)\x1b[0m');
+          conn._disconnected = true;
+          if (!conn._autoReconnectTimer) {
+            conn._reconnectAttempts = (conn._reconnectAttempts || 0) + 1;
+            if (conn._reconnectAttempts <= 3) {
+              conn._autoReconnectTimer = setTimeout(() => {
+                conn._autoReconnectTimer = null;
+                if (conn._disconnected) reconnect(connId);
+              }, 3000);
+            } else {
+              conn.terminal.writeln('\x1b[31mAuto-reconnect failed after 3 attempts.\x1b[0m');
+              conn.terminal.writeln('\x1b[90mPress Enter to try again.\x1b[0m');
+            }
+          }
           break;
         case 'dirList':
           renderFileList(connId, msg.path, msg.files || []);
@@ -832,9 +896,18 @@ function reconnect(connId) {
   newWs.onclose = () => {
     try {
       conn.terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m');
-      conn.terminal.writeln('\x1b[90mPress Enter to reconnect...\x1b[0m');
+      conn.terminal.writeln('\x1b[90mAuto-reconnecting in 3s... (Press Enter to reconnect now)\x1b[0m');
     } catch(e) {}
     conn._disconnected = true;
+    if (!conn._autoReconnectTimer) {
+      conn._reconnectAttempts = (conn._reconnectAttempts || 0) + 1;
+      if (conn._reconnectAttempts <= 3) {
+        conn._autoReconnectTimer = setTimeout(() => {
+          conn._autoReconnectTimer = null;
+          if (conn._disconnected) reconnect(connId);
+        }, 3000);
+      }
+    }
   };
 }
 
@@ -1774,6 +1847,22 @@ function initHSplitter(connId) {
   });
 }
 
+// 切换文件列表面板显示/隐藏
+function toggleFilePanel(connId) {
+  const filePanel = document.getElementById(`files-${connId}`);
+  const splitter = document.getElementById(`splitter-${connId}`);
+  const toggleBtn = document.getElementById(`filetoggle-${connId}`);
+  if (!filePanel) return;
+
+  const isHidden = filePanel.classList.toggle('hidden');
+  if (splitter) splitter.classList.toggle('hidden', isHidden);
+  if (toggleBtn) toggleBtn.classList.toggle('visible', isHidden);
+
+  // 重新 fit 终端
+  const conn = _connections.find(c => c.id === connId);
+  if (conn) setTimeout(() => conn.fitAddon.fit(), 50);
+}
+
 // 暴露到全局
 window.LinkHubTerminal = {
   connectServer,
@@ -1803,5 +1892,6 @@ window.LinkHubTerminal = {
   closeFileTab,
   switchFileTab,
   saveFile,
-  refreshFile
+  refreshFile,
+  toggleFilePanel
 };

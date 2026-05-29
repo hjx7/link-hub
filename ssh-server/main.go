@@ -244,6 +244,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			stdinPipe, _ := session.StdinPipe()
 			stdoutPipe, _ := session.StdoutPipe()
 
+			// 设置环境变量以启用颜色输出
+			session.Setenv("TERM", "xterm-256color")
+			session.Setenv("COLORTERM", "truecolor")
+
 			if err := session.Shell(); err != nil {
 				safeSend(Message{Type: "error", Data: "shell start failed: " + err.Error()})
 				session.Close()

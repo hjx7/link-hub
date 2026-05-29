@@ -3904,6 +3904,7 @@ select.srv-input option:checked {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .term-file-panel {
@@ -4381,6 +4382,44 @@ select.srv-input option:checked {
   outline: 2px dashed #4a9eff;
   outline-offset: -2px;
   background: rgba(74, 158, 255, 0.05);
+}
+
+/* 文件面板隐藏/显示切换 */
+.term-file-panel.hidden {
+  display: none;
+}
+
+.term-splitter.hidden {
+  display: none;
+}
+
+.term-file-toggle {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 24px;
+  height: 48px;
+  border: none;
+  border-radius: 0 6px 6px 0;
+  background: #2d2d2d;
+  color: #999;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.term-file-toggle:hover {
+  background: #3c3c3c;
+  color: #fff;
+}
+
+.term-file-toggle.visible {
+  display: flex;
 }
 
 /* 终端右侧 wrapper（包含文件查看器 + 终端） */

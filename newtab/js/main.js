@@ -378,6 +378,9 @@ function setupEventListeners() {
       case 'refresh-file':
         window.LinkHubTerminal?.refreshFile(actionTarget.dataset.conn);
         break;
+      case 'toggle-file-panel':
+        window.LinkHubTerminal?.toggleFilePanel(actionTarget.dataset.conn);
+        break;
     }
   });
 }
