@@ -1414,6 +1414,123 @@ function switchFileTab(connId, tabId) {
   renderFileViewer(connId);
 }
 
+// 根据文件名获取语言类型
+function getFileLang(fileName) {
+  if (!fileName) return 'text';
+  const lower = fileName.toLowerCase();
+  const ext = lower.substring(lower.lastIndexOf('.'));
+  const map = {
+    '.sh': 'shell', '.bash': 'shell', '.zsh': 'shell', '.fish': 'shell',
+    '.py': 'python',
+    '.js': 'javascript', '.jsx': 'javascript', '.ts': 'javascript', '.tsx': 'javascript',
+    '.go': 'go',
+    '.java': 'java', '.kt': 'java', '.scala': 'java',
+    '.c': 'c', '.cpp': 'c', '.h': 'c', '.hpp': 'c', '.cs': 'c', '.rs': 'c',
+    '.rb': 'ruby',
+    '.php': 'php',
+    '.lua': 'lua',
+    '.sql': 'sql',
+    '.yaml': 'yaml', '.yml': 'yaml',
+    '.json': 'json',
+    '.xml': 'xml', '.html': 'xml', '.htm': 'xml', '.svg': 'xml',
+    '.css': 'css', '.scss': 'css', '.less': 'css',
+    '.ini': 'ini', '.conf': 'ini', '.cfg': 'ini', '.properties': 'ini',
+    '.toml': 'toml',
+    '.md': 'markdown',
+    '.dockerfile': 'docker',
+    '.nginx': 'nginx',
+  };
+  if (lower === 'dockerfile' || lower === 'makefile') return 'shell';
+  return map[ext] || 'text';
+}
+
+// 语法高亮（逐行处理，避免跨行 span 导致错位）
+function highlightCode(code, lang) {
+  if (lang === 'text' || lang === 'csv') return escapeHtml(code);
+
+  const lines = code.split('\n');
+  return lines.map(line => highlightLine(escapeHtml(line), lang)).join('\n');
+}
+
+function highlightLine(line, lang) {
+  if (lang === 'shell') {
+    // 注释（整行）
+    if (/^\s*#/.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/(\$\{[^}]+\}|\$[A-Za-z_][A-Za-z0-9_]*|\$[0-9#@?!$*-])/g, '<span class="hl-variable">$1</span>');
+    line = line.replace(/\b(function|if|then|else|elif|fi|for|do|done|while|until|case|esac|in|return|exit|local|export|source|alias|unset|readonly|declare|typeset|shift|trap|eval|exec|set)\b/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\b(echo|printf|cd|ls|cat|grep|awk|sed|find|xargs|chmod|chown|mkdir|rm|cp|mv|ln|tar|gzip|curl|wget|ssh|scp|kill|ps|top|df|du|mount|umount|systemctl|service|apt|yum|dnf|pip|npm|docker)\b/g, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'python') {
+    if (/^\s*#/.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(def|class|if|elif|else|for|while|try|except|finally|with|as|import|from|return|yield|pass|break|continue|raise|lambda|and|or|not|in|is|True|False|None|self|async|await|global|nonlocal)\b/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\b(print|len|range|int|str|float|list|dict|set|tuple|type|isinstance|open|input|super|map|filter|zip|enumerate|sorted|reversed|abs|min|max|sum|any|all|hasattr|getattr|setattr)\b/g, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'javascript') {
+    if (/^\s*\/\//.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(\/\/[^\n]*)$/g, '<span class="hl-comment">$1</span>');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;|`[^`]*`)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(function|const|let|var|if|else|for|while|do|switch|case|break|continue|return|class|extends|new|this|super|import|export|from|default|try|catch|finally|throw|async|await|yield|typeof|instanceof|in|of|delete|void|null|undefined|true|false)\b/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\b(console|Math|JSON|Object|Array|String|Number|Boolean|Promise|Map|Set|RegExp|Date|Error|setTimeout|setInterval|fetch|require|module)\b/g, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'go') {
+    if (/^\s*\/\//.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(\/\/[^\n]*)$/g, '<span class="hl-comment">$1</span>');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(func|package|import|var|const|type|struct|interface|map|chan|go|defer|return|if|else|for|range|switch|case|default|break|continue|select|fallthrough|nil|true|false|make|new|append|len|cap|delete|close|panic|recover)\b/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\b(fmt|log|os|io|net|http|json|strings|strconv|sync|time|context|errors|math|sort|bytes|bufio|regexp)\b/g, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'java' || lang === 'c') {
+    if (/^\s*\/\//.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(\/\/[^\n]*)$/g, '<span class="hl-comment">$1</span>');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(public|private|protected|static|final|abstract|class|interface|extends|implements|new|this|super|return|if|else|for|while|do|switch|case|break|continue|try|catch|finally|throw|throws|import|package|void|int|long|float|double|boolean|char|byte|short|String|null|true|false|enum|struct|typedef|sizeof|unsigned|signed|const|volatile|extern|register|auto|include|define|ifdef|ifndef|endif|pragma)\b/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*[fFdDlL]?)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'sql') {
+    if (/^\s*--/.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(--[^\n]*)$/g, '<span class="hl-comment">$1</span>');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TABLE|INDEX|VIEW|INTO|VALUES|SET|JOIN|LEFT|RIGHT|INNER|OUTER|ON|AND|OR|NOT|IN|IS|NULL|AS|ORDER|BY|GROUP|HAVING|LIMIT|OFFSET|UNION|ALL|DISTINCT|EXISTS|BETWEEN|LIKE|CASE|WHEN|THEN|ELSE|END|BEGIN|COMMIT|ROLLBACK|GRANT|REVOKE|PRIMARY|KEY|FOREIGN|REFERENCES|CONSTRAINT|DEFAULT|CHECK|UNIQUE|AUTO_INCREMENT|CASCADE|TRUNCATE|IF|FUNCTION|PROCEDURE|TRIGGER|DATABASE|SCHEMA|USE|SHOW|DESCRIBE|EXPLAIN)\b/gi, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'yaml') {
+    if (/^\s*#/.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/^( *[A-Za-z_][A-Za-z0-9_.-]*)(:)/g, '<span class="hl-keyword">$1</span>$2');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(true|false|null|yes|no)\b/gi, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'json') {
+    line = line.replace(/(&quot;[^&quot;]*&quot;)\s*:/g, '<span class="hl-keyword">$1</span>:');
+    line = line.replace(/:(\s*&quot;[^&quot;]*&quot;)/g, ':<span class="hl-string">$1</span>');
+    line = line.replace(/\b(true|false|null)\b/g, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'xml') {
+    if (/&lt;!--/.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(&lt;\/?[A-Za-z][A-Za-z0-9_:-]*)/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/\s([A-Za-z_][A-Za-z0-9_:-]*)=/g, ' <span class="hl-builtin">$1</span>=');
+    line = line.replace(/(=&quot;[^&quot;]*&quot;|=&#x27;[^&#x27;]*&#x27;)/g, '<span class="hl-string">$1</span>');
+  } else if (lang === 'css') {
+    line = line.replace(/([.#]?[A-Za-z_-][A-Za-z0-9_-]*)(\s*\{)/g, '<span class="hl-keyword">$1</span>$2');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*(px|em|rem|%|vh|vw|s|ms)?)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'ini' || lang === 'toml') {
+    if (/^\s*[#;]/.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(\[[^\]]+\])/g, '<span class="hl-keyword">$1</span>');
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(true|false)\b/gi, '<span class="hl-builtin">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  } else if (lang === 'markdown') {
+    if (/^#{1,6}\s/.test(line)) return '<span class="hl-keyword">' + line + '</span>';
+    line = line.replace(/(`[^`]+`)/g, '<span class="hl-string">$1</span>');
+  } else {
+    if (/^\s*[#]/.test(line) || /^\s*\/\//.test(line)) return '<span class="hl-comment">' + line + '</span>';
+    line = line.replace(/(&#x27;[^&#x27;]*&#x27;|&quot;[^&quot;]*&quot;)/g, '<span class="hl-string">$1</span>');
+    line = line.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
+  }
+
+  return line;
+}
+
 function renderFileViewer(connId) {
   const panel = document.getElementById(`panel-${connId}`);
   if (!panel) return;
@@ -1465,7 +1582,19 @@ function renderFileViewer(connId) {
     if (activeTab.loading) {
       contentHtml = '<div class="fv-loading">\u52a0\u8f7d\u4e2d...</div>';
     } else {
-      contentHtml = `<textarea class="fv-editor" id="fveditor-${connId}" spellcheck="false">${escapeHtml(activeTab.content || '')}</textarea>`;
+      const lang = getFileLang(activeTab.name);
+      const lineCount = (activeTab.content || '').split('\n').length;
+      let lineNums = '';
+      for (let i = 1; i <= lineCount; i++) {
+        lineNums += i + '\n';
+      }
+      contentHtml = `<div class="fv-editor-wrap">
+        <div class="fv-gutter" id="fvgutter-${connId}"><pre class="fv-line-numbers">${lineNums}</pre></div>
+        <div class="fv-code-area" id="fvcodearea-${connId}">
+          <pre class="fv-highlight" id="fvhighlight-${connId}">${highlightCode(activeTab.content || '', lang)}\n</pre>
+          <textarea class="fv-editor" id="fveditor-${connId}" spellcheck="false">${escapeHtml(activeTab.content || '')}</textarea>
+        </div>
+      </div>`;
     }
   }
 
@@ -1484,7 +1613,41 @@ function renderFileViewer(connId) {
 
   const editor = document.getElementById(`fveditor-${connId}`);
   if (editor && activeTab && !activeTab.loading) {
+    const highlightEl = document.getElementById(`fvhighlight-${connId}`);
+    const gutterEl = document.getElementById(`fvgutter-${connId}`);
+    const lang = getFileLang(activeTab.name);
+
+    // 同步滚动 - 用 transform 避免 scrollTop 赋值的延迟错位
+    let ticking = false;
+    editor.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          if (highlightEl) {
+            highlightEl.style.transform = `translate(-${editor.scrollLeft}px, -${editor.scrollTop}px)`;
+          }
+          if (gutterEl) {
+            gutterEl.scrollTop = editor.scrollTop;
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
+    });
+
     editor.addEventListener('input', () => {
+      // 更新高亮
+      if (highlightEl) {
+        highlightEl.innerHTML = highlightCode(editor.value, lang) + '\n';
+      }
+      // 更新行号
+      if (gutterEl) {
+        const lineCount = editor.value.split('\n').length;
+        let lineNums = '';
+        for (let i = 1; i <= lineCount; i++) {
+          lineNums += i + '\n';
+        }
+        gutterEl.querySelector('.fv-line-numbers').textContent = lineNums;
+      }
       if (activeTab && !activeTab.modified) {
         activeTab.modified = true;
         const tabEl = viewerContainer.querySelector('.fv-tab.active .fv-tab-name');
@@ -1500,6 +1663,15 @@ function renderFileViewer(connId) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         saveFile(connId);
+      }
+      // Tab 键插入空格
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+        editor.dispatchEvent(new Event('input'));
       }
     });
   }
