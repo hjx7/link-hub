@@ -4739,3 +4739,182 @@ select.srv-input option:checked {
 .term-file-item.term-file-clickable:hover {
   background: #2d3748;
 }
+
+/* 批量执行命令 */
+.batch-targets-label {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.batch-target-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  margin: 2px 4px 2px 0;
+  background: #2d3748;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #7cb8ff;
+}
+
+.batch-exec-targets {
+  margin-bottom: 12px;
+}
+
+/* 批量终端面板 */
+.batch-terminal-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1e1e1e;
+  overflow: hidden;
+}
+
+.batch-terminal-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1px;
+  background: #333;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.batch-terminal-cell {
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.batch-cell-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.batch-cell-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #eee;
+}
+
+.batch-cell-host {
+  font-size: 11px;
+  color: #7cb8ff;
+  flex: 1;
+}
+
+.batch-cell-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+
+.batch-cell-btn:hover {
+  background: #3c3c3c;
+  color: #fff;
+}
+
+.batch-cell-close:hover {
+  background: #5c2020;
+  color: #f44747;
+}
+
+.batch-cell-term {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.batch-cell-term .xterm {
+  height: 100% !important;
+  padding: 2px;
+}
+
+/* 批量输入栏 */
+.batch-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #252525;
+  border-top: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.batch-input-label {
+  font-size: 12px;
+  color: #73c991;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.batch-input-btn {
+  padding: 4px 10px;
+  border: 1px solid #555;
+  background: #333;
+  color: #ccc;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.1s;
+}
+
+.batch-input-btn:hover {
+  background: #444;
+  border-color: #7cb8ff;
+  color: #fff;
+}
+
+.batch-input-cmd {
+  flex: 1;
+  padding: 8px 12px;
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #eee;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  outline: none;
+}
+
+.batch-input-cmd:focus {
+  border-color: #7cb8ff;
+}
+
+.batch-input-cmd::placeholder {
+  color: #666;
+}
+
+.batch-input-send {
+  padding: 8px 16px;
+  background: #4a9eff;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.batch-input-send:hover {
+  background: #3a8eef;
+}

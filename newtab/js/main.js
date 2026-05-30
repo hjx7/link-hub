@@ -91,6 +91,13 @@ function setupEventListeners() {
       e.stopPropagation();
     }
   });
+
+  // 批量执行弹窗 - 不允许点击遮罩关闭
+  document.getElementById('batchExecModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'batchExecModal') {
+      e.stopPropagation();
+    }
+  });
   
   // 确认弹窗点击外部关闭
   document.getElementById('confirmModal').addEventListener('click', (e) => {
@@ -380,6 +387,18 @@ function setupEventListeners() {
         break;
       case 'toggle-file-panel':
         window.LinkHubTerminal?.toggleFilePanel(actionTarget.dataset.conn);
+        break;
+      case 'batch-exec':
+        window.LinkHubTerminal?.openBatchExec();
+        break;
+      case 'close-batch-exec':
+        window.LinkHubTerminal?.closeBatchExec();
+        break;
+      case 'run-batch-exec':
+        window.LinkHubTerminal?.runBatchExec();
+        break;
+      case 'batch-cell-close':
+        window.LinkHubTerminal?.closeBatchCell(actionTarget.dataset.batch, actionTarget.dataset.server);
         break;
     }
   });

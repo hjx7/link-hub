@@ -773,10 +773,12 @@ function switchTab(tabId) {
     const conn = _connections.find(c => c.id === tabId);
     if (conn) {
       conn.panel.classList.add('active');
-      setTimeout(() => {
-        conn.fitAddon.fit();
-        conn.terminal.focus();
-      }, 50);
+      if (!conn._isBatch) {
+        setTimeout(() => {
+          conn.fitAddon.fit();
+          conn.terminal.focus();
+        }, 50);
+      }
     }
   }
 
@@ -918,23 +920,40 @@ function closeConnection(connId) {
 
   const conn = _connections[idx];
 
-  if (conn.ws.readyState === WebSocket.OPEN) {
-    try {
-      conn.ws.send(JSON.stringify({ type: 'disconnect' }));
-    } catch(e) {}
-    conn.ws.close();
+  if (conn._isBatch) {
+    // 批量终端 tab，关闭所有子连接
+    if (conn._batchConns) {
+      for (const bc of conn._batchConns) {
+        if (bc.ws && bc.ws.readyState === WebSocket.OPEN) {
+          try { bc.ws.send(JSON.stringify({ type: 'disconnect' })); } catch(e) {}
+          bc.ws.close();
+        }
+        bc.terminal.dispose();
+      }
+    }
+    if (conn._resizeHandler) {
+      window.removeEventListener('resize', conn._resizeHandler);
+    }
+    conn.panel.remove();
+  } else {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+      try {
+        conn.ws.send(JSON.stringify({ type: 'disconnect' }));
+      } catch(e) {}
+      conn.ws.close();
+    }
+
+    conn.terminal.dispose();
+    conn.panel.remove();
+
+    if (conn._resizeHandler) {
+      window.removeEventListener('resize', conn._resizeHandler);
+    }
+
+    // 清理文件 tab 数据
+    delete _fileTabs[connId];
+    delete _activeFileTab[connId];
   }
-
-  conn.terminal.dispose();
-  conn.panel.remove();
-
-  if (conn._resizeHandler) {
-    window.removeEventListener('resize', conn._resizeHandler);
-  }
-
-  // 清理文件 tab 数据
-  delete _fileTabs[connId];
-  delete _activeFileTab[connId];
 
   _connections.splice(idx, 1);
 
@@ -1863,6 +1882,271 @@ function toggleFilePanel(connId) {
   if (conn) setTimeout(() => conn.fitAddon.fit(), 50);
 }
 
+// ========== 批量执行命令 ==========
+
+function openBatchExec() {
+  const checked = document.querySelectorAll('.terminal-server-list .server-checkbox:checked');
+  const serverIds = Array.from(checked).map(cb => cb.dataset.id);
+
+  if (serverIds.length === 0) {
+    alert('\u8bf7\u5148\u52fe\u9009\u8981\u8fde\u63a5\u7684\u670d\u52a1\u5668');
+    return;
+  }
+
+  const targets = serverIds.map(id => _servers.find(s => s.id === id)).filter(Boolean);
+
+  // 创建批量终端 tab
+  const batchId = 'batch_' + Date.now();
+  const termPanel = document.createElement('div');
+  termPanel.id = `panel-${batchId}`;
+  termPanel.className = 'terminal-panel';
+
+  // 网格布局 + 底部命令输入
+  termPanel.innerHTML = `
+    <div class="batch-terminal-panel">
+      <div class="batch-terminal-grid" id="batchGrid-${batchId}"></div>
+      <div class="batch-input-bar">
+        <span class="batch-input-label">\u25cf \u5168\u90e8</span>
+        <button class="batch-input-btn" id="batchClearBtn-${batchId}" title="Ctrl+C">Ctrl+C</button>
+        <input type="text" class="batch-input-cmd" id="batchInput-${batchId}" placeholder="\u8f93\u5165\u547d\u4ee4\uff0c\u540c\u65f6\u53d1\u9001\u5230\u6240\u6709\u7ec8\u7aef..." spellcheck="false">
+        <button class="batch-input-btn" id="batchUploadBtn-${batchId}" title="\u4e0a\u4f20\u6587\u4ef6\u5230\u6240\u6709\u670d\u52a1\u5668"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>
+        <input type="file" id="batchFileInput-${batchId}" style="display:none" multiple>
+        <button class="batch-input-send" id="batchSendBtn-${batchId}">\u53d1\u9001</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('terminalBody').appendChild(termPanel);
+
+  const conn = {
+    id: batchId,
+    panel: termPanel,
+    name: '\u26a1 \u6279\u91cf(' + targets.length + ')',
+    _isBatch: true,
+    _batchConns: []
+  };
+  _connections.push(conn);
+  switchTab(batchId);
+
+  // 为每台服务器创建终端格子
+  const gridEl = document.getElementById(`batchGrid-${batchId}`);
+  for (const server of targets) {
+    const cellId = `bcell-${batchId}-${server.id}`;
+    const cell = document.createElement('div');
+    cell.className = 'batch-terminal-cell';
+    cell.id = `batchcell-${batchId}-${server.id}`;
+    cell.innerHTML = `
+      <div class="batch-cell-header">
+        <span class="batch-cell-name">${escapeHtml(server.name)}</span>
+        <span class="batch-cell-host">${escapeHtml(server.host || server.wsUrl || '')}</span>
+        <button class="batch-cell-btn batch-cell-close" data-action="batch-cell-close" data-batch="${batchId}" data-server="${server.id}" title="\u5173\u95ed">\u00d7</button>
+      </div>
+      <div class="batch-cell-term" id="${cellId}"></div>
+    `;
+    gridEl.appendChild(cell);
+
+    // 创建 xterm 实例
+    const terminal = new Terminal({
+      cursorBlink: true,
+      fontSize: 12,
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+      theme: {
+        background: '#111111',
+        foreground: '#d4d4d4',
+        cursor: '#ffffff',
+        selectionBackground: '#264f78'
+      }
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.open(document.getElementById(cellId));
+    setTimeout(() => fitAddon.fit(), 100);
+
+    // 连接 WebSocket
+    const host = server.wsUrl || server.host;
+    let ws;
+    try {
+      ws = new WebSocket('ws://localhost:18022/ws');
+    } catch(e) {
+      terminal.writeln('\x1b[31mWebSocket failed\x1b[0m');
+      continue;
+    }
+
+    const batchConn = { serverId: server.id, ws, terminal, fitAddon, server };
+    conn._batchConns.push(batchConn);
+
+    ws.onopen = () => {
+      terminal.writeln('\x1b[33mConnecting...\x1b[0m');
+      setTimeout(() => {
+        const dims = fitAddon.proposeDimensions();
+        ws.send(JSON.stringify({
+          type: 'connect',
+          host: host,
+          port: server.port || 22,
+          username: server.username,
+          password: server.password,
+          cols: dims?.cols || 80,
+          rows: dims?.rows || 24
+        }));
+      }, 200);
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        switch (msg.type) {
+          case 'connected':
+            terminal.writeln('\x1b[32mConnected!\x1b[0m\r\n');
+            break;
+          case 'output':
+            terminal.write(msg.data);
+            break;
+          case 'error':
+            terminal.writeln('\x1b[31m' + msg.data + '\x1b[0m');
+            break;
+          case 'disconnect':
+            terminal.writeln('\r\n\x1b[33m' + (msg.data || 'Disconnected') + '\x1b[0m');
+            break;
+        }
+      } catch(err) {}
+    };
+
+    ws.onclose = () => {
+      try { terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m'); } catch(e) {}
+    };
+  }
+
+  // 绑定输入框事件
+  const inputEl = document.getElementById(`batchInput-${batchId}`);
+  const sendBtn = document.getElementById(`batchSendBtn-${batchId}`);
+  const clearBtn = document.getElementById(`batchClearBtn-${batchId}`);
+
+  const sendCommand = () => {
+    const cmd = inputEl.value;
+    if (!cmd) return;
+    for (const bc of conn._batchConns) {
+      if (bc.ws.readyState === WebSocket.OPEN) {
+        bc.ws.send(JSON.stringify({ type: 'input', data: cmd + '\n' }));
+      }
+    }
+    inputEl.value = '';
+    inputEl.focus();
+  };
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendCommand();
+    }
+  });
+
+  sendBtn.addEventListener('click', sendCommand);
+
+  clearBtn.addEventListener('click', () => {
+    for (const bc of conn._batchConns) {
+      if (bc.ws.readyState === WebSocket.OPEN) {
+        bc.ws.send(JSON.stringify({ type: 'input', data: '\x03' }));
+      }
+    }
+  });
+
+  // 上传文件到所有服务器
+  const uploadBtn = document.getElementById(`batchUploadBtn-${batchId}`);
+  const batchFileInput = document.getElementById(`batchFileInput-${batchId}`);
+
+  uploadBtn.addEventListener('click', () => {
+    batchFileInput.click();
+  });
+
+  batchFileInput.addEventListener('change', () => {
+    if (!batchFileInput.files || batchFileInput.files.length === 0) return;
+    for (const bc of conn._batchConns) {
+      const server = bc.server;
+      const host = server.wsUrl || server.host;
+      for (const file of batchFileInput.files) {
+        batchUploadFile(host, server.port || 22, server.username, server.password, '/tmp', file, bc.terminal);
+      }
+    }
+    batchFileInput.value = '';
+  });
+
+  // 窗口 resize 时 fit 所有终端
+  const resizeHandler = () => {
+    if (_activeTabId === batchId) {
+      for (const bc of conn._batchConns) {
+        bc.fitAddon.fit();
+        const dims = bc.fitAddon.proposeDimensions();
+        if (dims && bc.ws.readyState === WebSocket.OPEN) {
+          bc.ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        }
+      }
+    }
+  };
+  window.addEventListener('resize', resizeHandler);
+  conn._resizeHandler = resizeHandler;
+
+  // 延迟 fit
+  setTimeout(resizeHandler, 300);
+}
+
+function closeBatchExec() {
+  document.getElementById('batchExecModal').style.display = 'none';
+}
+
+// 关闭批量终端中的单个窗口
+function closeBatchCell(batchId, serverId) {
+  const conn = _connections.find(c => c.id === batchId);
+  if (!conn || !conn._batchConns) return;
+
+  const idx = conn._batchConns.findIndex(bc => bc.serverId === serverId);
+  if (idx === -1) return;
+
+  const bc = conn._batchConns[idx];
+  if (bc.ws && bc.ws.readyState === WebSocket.OPEN) {
+    try { bc.ws.send(JSON.stringify({ type: 'disconnect' })); } catch(e) {}
+    bc.ws.close();
+  }
+  bc.terminal.dispose();
+  conn._batchConns.splice(idx, 1);
+
+  // 移除 DOM
+  const cellEl = document.getElementById(`batchcell-${batchId}-${serverId}`);
+  if (cellEl) cellEl.remove();
+
+  // 如果所有子连接都关了，关闭整个 tab
+  if (conn._batchConns.length === 0) {
+    closeConnection(batchId);
+  }
+}
+
+// 批量终端上传文件（简单单片上传）
+function batchUploadFile(host, port, username, password, remotePath, file, terminal) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  formData.append('host', host);
+  formData.append('port', String(port));
+  formData.append('username', username);
+  formData.append('password', password);
+  formData.append('path', remotePath);
+  formData.append('chunk', '0');
+  formData.append('totalChunks', '1');
+
+  terminal.writeln('\r\n\x1b[33mUploading ' + file.name + ' to ' + remotePath + '...\x1b[0m');
+
+  fetch('http://localhost:18022/upload', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(() => {
+      terminal.writeln('\x1b[32mUpload OK: ' + remotePath + '/' + file.name + '\x1b[0m');
+    })
+    .catch((err) => {
+      terminal.writeln('\x1b[31mUpload failed: ' + err.message + '\x1b[0m');
+    });
+}
+
+function runBatchExec() {
+  // 保留旧的单次执行逻辑（不再使用，但保留兼容）
+  closeBatchExec();
+}
+
 // 暴露到全局
 window.LinkHubTerminal = {
   connectServer,
@@ -1893,5 +2177,9 @@ window.LinkHubTerminal = {
   switchFileTab,
   saveFile,
   refreshFile,
-  toggleFilePanel
+  toggleFilePanel,
+  openBatchExec,
+  closeBatchExec,
+  runBatchExec,
+  closeBatchCell
 };

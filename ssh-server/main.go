@@ -742,6 +742,9 @@ func runServer() {
 		json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "latency": latency})
 	})
 
+	// 批量执行命令接口
+	http.HandleFunc("/exec", handleExec)
+
 	addr := fmt.Sprintf("%s:%d", bind, port)
 	log.Printf("LinkHub SSH Server v1.0.0 listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, nil))
@@ -1016,6 +1019,97 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "chunk": chunkStr})
+}
+
+// 批量执行命令处理
+func handleExec(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(200)
+		return
+	}
+
+	if r.Method != "POST" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+
+	var req struct {
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Command  string `json:"command"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "invalid request"})
+		return
+	}
+
+	if req.Host == "" || req.Username == "" || req.Command == "" {
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "missing parameters"})
+		return
+	}
+
+	if req.Port == 0 {
+		req.Port = 22
+	}
+
+	config := &ssh.ClientConfig{
+		User:            req.Username,
+		Auth:            []ssh.AuthMethod{ssh.Password(req.Password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%d", req.Host, req.Port)
+	start := time.Now()
+
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "SSH connect failed: " + err.Error(),
+			"elapsed": time.Since(start).Milliseconds(),
+		})
+		return
+	}
+	defer client.Close()
+
+	session, err := client.NewSession()
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "session failed: " + err.Error(),
+			"elapsed": time.Since(start).Milliseconds(),
+		})
+		return
+	}
+	defer session.Close()
+
+	output, err := session.CombinedOutput(req.Command)
+	elapsed := time.Since(start).Milliseconds()
+
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"output":  string(output),
+			"error":   err.Error(),
+			"elapsed": elapsed,
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"output":  string(output),
+		"elapsed": elapsed,
+	})
 }
 
 func splitPath(path string) []string {
