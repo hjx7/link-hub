@@ -4918,3 +4918,25 @@ select.srv-input option:checked {
 .batch-input-send:hover {
   background: #3a8eef;
 }
+
+/* 批量上传进度 */
+.batch-upload-progress {
+  font-size: 11px;
+  color: #4a9eff;
+  font-weight: 500;
+  margin-left: 4px;
+  padding: 1px 6px;
+  background: #1a3050;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+
+.batch-upload-progress.done {
+  color: #73c991;
+  background: #1a3020;
+}
+
+.batch-upload-progress.fail {
+  color: #f44747;
+  background: #3a1a1a;
+}

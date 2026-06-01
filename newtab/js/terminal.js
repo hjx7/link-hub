@@ -2013,6 +2013,13 @@ function openBatchExec() {
     ws.onclose = () => {
       try { terminal.writeln('\r\n\x1b[33mConnection closed\x1b[0m'); } catch(e) {}
     };
+
+    // 终端输入 → 发送到 WebSocket
+    terminal.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'input', data }));
+      }
+    });
   }
 
   // 绑定输入框事件
@@ -2059,11 +2066,13 @@ function openBatchExec() {
 
   batchFileInput.addEventListener('change', () => {
     if (!batchFileInput.files || batchFileInput.files.length === 0) return;
+    const files = Array.from(batchFileInput.files);
+    // 每台服务器独立上传（内部串行分片，不会占大量内存）
     for (const bc of conn._batchConns) {
       const server = bc.server;
-      const host = server.wsUrl || server.host;
-      for (const file of batchFileInput.files) {
-        batchUploadFile(host, server.port || 22, server.username, server.password, '/tmp', file, bc.terminal);
+      const cellEl = document.getElementById(`batchcell-${batchId}-${server.id}`);
+      for (const file of files) {
+        batchUploadFile(null, 0, null, null, '/tmp', file, bc.terminal, cellEl, bc.ws, server);
       }
     }
     batchFileInput.value = '';
@@ -2118,28 +2127,85 @@ function closeBatchCell(batchId, serverId) {
   }
 }
 
-// 批量终端上传文件（简单单片上传）
-function batchUploadFile(host, port, username, password, remotePath, file, terminal) {
-  const formData = new FormData();
-  formData.append('file', file, file.name);
-  formData.append('host', host);
-  formData.append('port', String(port));
-  formData.append('username', username);
-  formData.append('password', password);
-  formData.append('path', remotePath);
-  formData.append('chunk', '0');
-  formData.append('totalChunks', '1');
+// 批量终端上传文件
+function batchUploadFile(host, port, username, password, remotePath, file, terminal, cellEl, ws, server) {
+  // 在标题栏添加进度标签
+  let progressEl = null;
+  if (cellEl) {
+    const header = cellEl.querySelector('.batch-cell-header');
+    if (header) {
+      progressEl = document.createElement('span');
+      progressEl.className = 'batch-upload-progress';
+      progressEl.textContent = '0%';
+      header.appendChild(progressEl);
+    }
+  }
 
-  terminal.writeln('\r\n\x1b[33mUploading ' + file.name + ' to ' + remotePath + '...\x1b[0m');
+  const sHost = server.wsUrl || server.host;
+  const sPort = server.port || 22;
 
-  fetch('http://localhost:18022/upload', { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(() => {
-      terminal.writeln('\x1b[32mUpload OK: ' + remotePath + '/' + file.name + '\x1b[0m');
-    })
-    .catch((err) => {
-      terminal.writeln('\x1b[31mUpload failed: ' + err.message + '\x1b[0m');
-    });
+  // 使用 HTTP 分片上传（复用服务端连接池），避免 base64 内存爆炸
+  const chunkSize = 1024 * 1024; // 1MB
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  let currentChunk = 0;
+
+  function uploadNextChunk() {
+    if (currentChunk >= totalChunks) {
+      if (progressEl) {
+        progressEl.textContent = '\u2714';
+        progressEl.classList.add('done');
+        setTimeout(() => progressEl.remove(), 3000);
+      }
+      terminal.writeln('\r\n\x1b[32mUpload OK: ' + remotePath + '/' + file.name + '\x1b[0m');
+      return;
+    }
+
+    const start = currentChunk * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
+
+    const formData = new FormData();
+    formData.append('file', chunk, file.name);
+    formData.append('host', sHost);
+    formData.append('port', String(sPort));
+    formData.append('username', server.username);
+    formData.append('password', server.password);
+    formData.append('path', remotePath);
+    formData.append('chunk', String(currentChunk));
+    formData.append('totalChunks', String(totalChunks));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'http://localhost:18022/upload');
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        currentChunk++;
+        const pct = Math.round((currentChunk / totalChunks) * 100);
+        if (progressEl) progressEl.textContent = pct + '%';
+        uploadNextChunk();
+      } else {
+        if (progressEl) {
+          progressEl.textContent = '\u2716';
+          progressEl.classList.add('fail');
+          setTimeout(() => progressEl.remove(), 3000);
+        }
+        terminal.writeln('\r\n\x1b[31mUpload failed at chunk ' + currentChunk + '\x1b[0m');
+      }
+    };
+
+    xhr.onerror = () => {
+      if (progressEl) {
+        progressEl.textContent = '\u2716';
+        progressEl.classList.add('fail');
+        setTimeout(() => progressEl.remove(), 3000);
+      }
+      terminal.writeln('\r\n\x1b[31mUpload error\x1b[0m');
+    };
+
+    xhr.send(formData);
+  }
+
+  uploadNextChunk();
 }
 
 function runBatchExec() {
