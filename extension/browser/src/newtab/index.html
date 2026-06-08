@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkHub</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 左侧菜单 -->
+    <aside class="sidebar" id="mainSidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">🔗</div>
+          <span class="logo-text">LinkHub</span>
+        </div>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-page="sites">
+          <span class="nav-icon">🌐</span>
+          <span class="nav-text">常用网站</span>
+        </button>
+        <button class="nav-item" data-page="bookmarks">
+          <span class="nav-icon">📁</span>
+          <span class="nav-text">我的书签</span>
+        </button>
+        <button class="nav-item" data-page="tools">
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-text">实用工具</span>
+        </button>
+        <button class="nav-item" data-page="todo">
+          <span class="nav-icon">📝</span>
+          <span class="nav-text">待办</span>
+        </button>
+        <button class="nav-item" data-page="terminal">
+          <span class="nav-icon">💻</span>
+          <span class="nav-text">终端</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="themeToggle" title="切换深色模式">
+          <span class="theme-icon" id="themeIcon">🌙</span>
+          <span class="theme-text" id="themeText">深色模式</span>
+        </button>
+      </div>
+    </aside>
+    
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 常用网站页 -->
+      <div class="page active" id="page-sites">
+        <div class="quick-grid" id="sitesGrid"></div>
+      </div>
+      
+      <!-- 我的书签页 -->
+      <div class="page" id="page-bookmarks">
+        <!-- 顶部工具栏区域 -->
+        <div class="bookmark-toolbar">
+          <div class="toolbar-search">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" placeholder="搜索书签..." id="bookmarkFilter">
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-icon" data-action="export-bookmarks" title="导出书签">📤</button>
+            <button class="btn btn-icon" data-action="import-bookmarks" title="导入书签">📥</button>
+            <input type="file" id="importFileInput" accept=".json" style="display:none">
+          </div>
+        </div>
+        
+        <!-- 主体内容区域 -->
+        <div class="bookmark-layout">
+          <!-- 左侧文件夹树面板 -->
+          <div class="bookmark-tree-panel" id="bookmarkTreePanel">
+            <div class="tree-panel-content" id="bookmarkTree"></div>
+          </div>
+          <div class="bookmark-splitter" id="bookmarkSplitter"></div>
+          <!-- 右侧书签内容面板 -->
+          <div class="bookmark-content-panel" id="bookmarkContentPanel">
+            <div class="content-panel-header" id="contentPanelHeader">
+              <span class="content-panel-title">📚 书签栏</span>
+              <div class="content-panel-actions">
+                <button class="btn btn-primary btn-sm" data-action="open-add">➕ 添加书签</button>
+                <button class="btn btn-primary btn-sm" data-action="open-add-folder">📁 添加文件夹</button>
+              </div>
+            </div>
+            <div class="content-panel-content" id="bookmarkContent"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 工具页 -->
+      <div class="page" id="page-tools">
+        <!-- 工具 Tab 栏 -->
+        <div class="tools-tabs">
+          <button class="tools-tab active" data-action="tool" data-tool="json">
+            <span class="tab-icon">{}</span>
+            <span class="tab-text">JSON</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="timestamp">
+            <span class="tab-icon">⏰</span>
+            <span class="tab-text">时间戳</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="cron">
+            <span class="tab-icon">📋</span>
+            <span class="tab-text">Cron</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="regex">
+            <span class="tab-icon">.*</span>
+            <span class="tab-text">正则</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="url">
+            <span class="tab-icon">🔗</span>
+            <span class="tab-text">URL</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="base64">
+            <span class="tab-icon">01</span>
+            <span class="tab-text">Base64</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="jwt">
+            <span class="tab-icon">🔑</span>
+            <span class="tab-text">JWT</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="hash">
+            <span class="tab-icon">#</span>
+            <span class="tab-text">哈希</span>
+          </button>
+          <button class="tools-tab" data-action="tool" data-tool="diff">
+            <span class="tab-icon">⇄</span>
+            <span class="tab-text">Diff</span>
+          </button>
+        </div>
+
+        <!-- 工具内容区 -->
+        <div class="tools-content">
+          <!-- JSON 工具：左右双栏布局 -->
+          <div class="tool-panel" id="jsonToolPanel">
+            <div class="json-editor-container">
+              <!-- 左侧输入区 -->
+              <div class="json-input-panel">
+                <div class="json-panel-header">
+                  <span class="json-panel-title">输入</span>
+                </div>
+                <div class="json-input-wrapper">
+                  <textarea class="json-input" id="toolInput" placeholder="输入 JSON 内容..."></textarea>
+                </div>
+              </div>
+              <!-- 右侧输出区 -->
+              <div class="json-output-panel">
+                <div class="json-panel-header">
+                  <span class="json-panel-title">输出</span>
+                  <div class="json-mode-toggle">
+                    <button class="json-mode-btn active" data-mode="format" data-action="set-json-mode">格式化</button>
+                    <button class="json-mode-btn" data-mode="compress" data-action="set-json-mode">压缩</button>
+                  </div>
+                </div>
+                <div class="json-output-wrapper">
+                  <div class="json-output" id="toolOutput"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 非 JSON 工具通用面板 -->
+          <div class="tool-panel" id="generalToolPanel" style="display: none;">
+            <textarea class="tool-input" id="toolInputGeneral" placeholder="输入内容..."></textarea>
+            <div class="tool-output-general" id="toolOutputGeneral"></div>
+            <div class="tool-error" id="toolError" style="display: none;"></div>
+            <div class="tool-actions">
+              <button class="btn btn-primary" id="toolExecuteBtn" data-action="execute-tool">转换</button>
+              <button class="btn btn-secondary" data-action="copy-tool">复制</button>
+              <button class="btn btn-secondary" data-action="clear-tool">清空</button>
+            </div>
+          </div>
+
+          <!-- 时间戳工具专用面板 -->
+          <div class="tool-panel" id="timestampToolPanel" style="display: none;">
+            <div class="ts-section">
+              <div class="ts-current">
+                <span class="ts-label">当前时间戳</span>
+                <div class="ts-now-row">
+                  <span class="ts-now-value" id="tsNowValue">—</span>
+                  <button class="btn btn-sm btn-secondary" data-action="copy-ts-now">复制</button>
+                </div>
+                <span class="ts-now-date" id="tsNowDate"></span>
+              </div>
+            </div>
+
+            <div class="ts-columns">
+              <div class="ts-section">
+                <div class="ts-title">⏰ 时间戳转日期时间</div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input" id="tsToDateInput" placeholder="输入时间戳">
+                  <select class="ts-select" id="tsToDateUnit">
+                    <option value="s">秒(s)</option>
+                    <option value="ms">毫秒(ms)</option>
+                  </select>
+                </div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input ts-result-input" id="tsToDateResult" disabled placeholder="转换结果">
+                  <select class="ts-select" id="tsToDateTimezone">
+                    <option value="local">Asia/Shanghai</option>
+                    <option value="utc">UTC</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="ts-section">
+                <div class="ts-title">📅 日期时间转时间戳</div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input" id="tsToTsInput" placeholder="如 2024-01-15 12:00:00">
+                  <select class="ts-select" id="tsToTsTimezone">
+                    <option value="local">Asia/Shanghai</option>
+                    <option value="utc">UTC</option>
+                  </select>
+                </div>
+                <div class="ts-row">
+                  <input type="text" class="ts-input ts-result-input" id="tsToTsResult" disabled placeholder="转换结果">
+                  <select class="ts-select" id="tsToTsUnit">
+                    <option value="s">秒(s)</option>
+                    <option value="ms">毫秒(ms)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cron 工具专用面板 -->
+          <div class="tool-panel" id="cronToolPanel" style="display: none;">
+            <div class="cron-section">
+              <div class="cron-title">Cron 表达式解析</div>
+              <div class="cron-input-row">
+                <input type="text" class="cron-input" id="cronInput" placeholder="如 0 30 9 * * ? （秒 分 时 日 月 周）">
+              </div>
+              <div class="cron-desc" id="cronDesc"></div>
+              <div class="cron-next-title">接下来 10 次执行时间：</div>
+              <div class="cron-next-list" id="cronNextList"></div>
+            </div>
+
+            <div class="cron-section">
+              <div class="cron-title">常用表达式参考</div>
+              <div class="cron-ref-list">
+                <div class="cron-ref-item" data-cron="0 0/5 * * * ?"><code>0 0/5 * * * ?</code><span>每5分钟</span></div>
+                <div class="cron-ref-item" data-cron="0 0 * * * ?"><code>0 0 * * * ?</code><span>每小时整点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 9 * * ?"><code>0 0 9 * * ?</code><span>每天9点</span></div>
+                <div class="cron-ref-item" data-cron="0 30 9 * * 1-5"><code>0 30 9 * * 1-5</code><span>工作日9:30</span></div>
+                <div class="cron-ref-item" data-cron="0 0 0 1 * ?"><code>0 0 0 1 * ?</code><span>每月1号0点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 0 * * 1"><code>0 0 0 * * 1</code><span>每周一0点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 12 * * ?"><code>0 0 12 * * ?</code><span>每天中午12点</span></div>
+                <div class="cron-ref-item" data-cron="0 0 0 1 1 ?"><code>0 0 0 1 1 ?</code><span>每年1月1号0点</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 正则表达式工具专用面板 -->
+          <div class="tool-panel" id="regexToolPanel" style="display: none;">
+            <div class="regex-editor">
+              <div class="regex-input-section">
+                <div class="regex-field">
+                  <label class="regex-label">正则表达式</label>
+                  <div class="regex-input-row">
+                    <span class="regex-slash">/</span>
+                    <div class="regex-highlight-wrapper">
+                      <div class="regex-highlight-layer" id="regexHighlight"></div>
+                      <input type="text" class="regex-input" id="regexPattern" placeholder="输入正则表达式" spellcheck="false">
+                    </div>
+                    <span class="regex-slash">/</span>
+                    <input type="text" class="regex-flags" id="regexFlags" value="g" placeholder="flags" spellcheck="false">
+                  </div>
+                </div>
+                <div class="regex-field regex-field-grow">
+                  <label class="regex-label">测试字符串</label>
+                  <div class="regex-test-wrapper">
+                    <div class="regex-test-highlight" id="regexTestHighlight"></div>
+                    <textarea class="regex-textarea" id="regexTestStr" placeholder="输入要匹配的文本..." spellcheck="false"></textarea>
+                  </div>
+                </div>
+                <div class="regex-field regex-field-grow">
+                  <label class="regex-label">匹配结果</label>
+                  <div class="regex-result" id="regexResult"></div>
+                </div>
+              </div>
+
+              <div class="regex-ref-section">
+                <div class="regex-ref-title">常用正则语法</div>
+                <div class="regex-ref-grid">
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">字符类</div>
+                    <div class="regex-ref-item"><code>.</code><span>任意字符</span></div>
+                    <div class="regex-ref-item"><code>\d</code><span>数字 [0-9]</span></div>
+                    <div class="regex-ref-item"><code>\w</code><span>字母数字下划线</span></div>
+                    <div class="regex-ref-item"><code>\s</code><span>空白字符</span></div>
+                    <div class="regex-ref-item"><code>[abc]</code><span>字符集合</span></div>
+                    <div class="regex-ref-item"><code>[^abc]</code><span>取反字符集</span></div>
+                  </div>
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">量词</div>
+                    <div class="regex-ref-item"><code>*</code><span>0 次或多次</span></div>
+                    <div class="regex-ref-item"><code>+</code><span>1 次或多次</span></div>
+                    <div class="regex-ref-item"><code>?</code><span>0 次或 1 次</span></div>
+                    <div class="regex-ref-item"><code>{n}</code><span>恰好 n 次</span></div>
+                    <div class="regex-ref-item"><code>{n,m}</code><span>n 到 m 次</span></div>
+                    <div class="regex-ref-item"><code>{n,}</code><span>至少 n 次</span></div>
+                  </div>
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">定位与分组</div>
+                    <div class="regex-ref-item"><code>^</code><span>行首</span></div>
+                    <div class="regex-ref-item"><code>$</code><span>行尾</span></div>
+                    <div class="regex-ref-item"><code>\b</code><span>单词边界</span></div>
+                    <div class="regex-ref-item"><code>(abc)</code><span>捕获分组</span></div>
+                    <div class="regex-ref-item"><code>(?:abc)</code><span>非捕获分组</span></div>
+                    <div class="regex-ref-item"><code>a|b</code><span>或</span></div>
+                  </div>
+                  <div class="regex-ref-group">
+                    <div class="regex-ref-subtitle">标志 (flags)</div>
+                    <div class="regex-ref-item"><code>g</code><span>全局匹配</span></div>
+                    <div class="regex-ref-item"><code>i</code><span>忽略大小写</span></div>
+                    <div class="regex-ref-item"><code>m</code><span>多行模式</span></div>
+                    <div class="regex-ref-item"><code>s</code><span>. 匹配换行</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- URL 编解码工具专用面板 -->
+          <div class="tool-panel" id="urlToolPanel" style="display: none;">
+            <div class="url-section">
+              <textarea class="url-textarea" id="urlInput" placeholder="请输入需要 URL编码/解码 的文本"></textarea>
+              <div class="url-actions">
+                <button class="btn btn-primary btn-sm" data-action="url-encode">URL 编码</button>
+                <button class="btn btn-primary btn-sm" data-action="url-decode">URL 解码</button>
+                <button class="btn btn-secondary btn-sm" data-action="url-swap">↕ 交换</button>
+                <button class="btn btn-danger-outline btn-sm" data-action="url-clear">清空</button>
+              </div>
+              <textarea class="url-textarea url-result-textarea" id="urlOutput" placeholder="处理结果" readonly></textarea>
+            </div>
+          </div>
+
+          <!-- Base64 编解码工具专用面板 -->
+          <div class="tool-panel" id="base64ToolPanel" style="display: none;">
+            <div class="url-section">
+              <textarea class="url-textarea" id="base64Input" placeholder="请输入需要 Base64编码/解码 的文本"></textarea>
+              <div class="url-actions">
+                <button class="btn btn-primary btn-sm" data-action="base64-encode">Base64 编码</button>
+                <button class="btn btn-primary btn-sm" data-action="base64-decode">Base64 解码</button>
+                <button class="btn btn-secondary btn-sm" data-action="base64-swap">↕ 交换</button>
+                <button class="btn btn-danger-outline btn-sm" data-action="base64-clear">清空</button>
+              </div>
+              <textarea class="url-textarea url-result-textarea" id="base64Output" placeholder="处理结果" readonly></textarea>
+            </div>
+          </div>
+
+          <!-- JWT 解析工具面板 -->
+          <div class="tool-panel" id="jwtToolPanel" style="display: none;">
+            <div class="jwt-section">
+              <div class="jwt-input-area">
+                <label class="jwt-label">JWT Token</label>
+                <textarea class="jwt-textarea" id="jwtInput" placeholder="粘贴 JWT Token..."></textarea>
+              </div>
+              <div class="jwt-result-area" id="jwtResult">
+                <div class="jwt-placeholder">粘贴 JWT Token 后自动解析</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 哈希工具面板 -->
+          <div class="tool-panel" id="hashToolPanel" style="display: none;">
+            <div class="url-section">
+              <textarea class="url-textarea" id="hashInput" placeholder="输入要计算哈希的文本"></textarea>
+              <div class="hash-results" id="hashOutput"></div>
+            </div>
+          </div>
+
+          <!-- Diff 对比工具面板 -->
+          <div class="tool-panel" id="diffToolPanel" style="display: none;">
+            <div class="diff-container">
+              <div class="diff-pane diff-pane-left">
+                <div class="diff-pane-header">原始文本</div>
+                <div class="diff-pane-body">
+                  <div class="diff-highlight-layer" id="diffHighlightLeft"></div>
+                  <textarea class="diff-edit" id="diffLeft" placeholder="粘贴原始文本..." spellcheck="false"></textarea>
+                </div>
+              </div>
+              <div class="diff-pane diff-pane-right">
+                <div class="diff-pane-header">修改后文本</div>
+                <div class="diff-pane-body">
+                  <div class="diff-highlight-layer" id="diffHighlightRight"></div>
+                  <textarea class="diff-edit" id="diffRight" placeholder="粘贴修改后文本..." spellcheck="false"></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="diff-output-stats" id="diffOutput"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 待办页 -->
+      <div class="page" id="page-todo">
+        <div class="todo-container">
+          <!-- 顶部统计栏 -->
+          <div class="todo-header">
+            <div class="todo-stats">
+              <span class="todo-stats-text" id="todoStats">今日 0/0</span>
+            </div>
+          </div>
+          <!-- 输入框 -->
+          <div class="todo-input-row">
+            <input type="text" class="todo-input" id="todoInput" placeholder="添加待办，回车确认...">
+            <select class="todo-priority-select" id="todoPrioritySelect">
+              <option value="normal">普通</option>
+              <option value="high">紧急</option>
+              <option value="low">不急</option>
+            </select>
+          </div>
+          <!-- 分组 Tab -->
+          <div class="todo-groups" id="todoGroups">
+            <button class="todo-group-tab active" data-action="select-todo-group" data-group="all">全部</button>
+            <button class="todo-group-add" data-action="add-todo-group" title="添加分组">+</button>
+          </div>
+          <!-- 左右双栏布局 -->
+          <div class="todo-columns">
+            <div class="todo-column todo-column-undone">
+              <div class="todo-column-header">📋 待办</div>
+              <div class="todo-list" id="todoList"></div>
+            </div>
+            <div class="todo-column todo-column-done">
+              <div class="todo-column-header">✅ 已完成</div>
+              <div class="todo-done-list" id="todoDoneList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 终端页 -->
+      <div class="page" id="page-terminal">
+        <div class="terminal-container">
+          <div class="terminal-tabs" id="terminalTabs">
+            <button class="terminal-sidebar-toggle" id="sidebarToggle" data-action="toggle-sidebar" title="收起/展开侧栏">☰</button>
+            <div class="terminal-tab active" data-action="switch-conn" data-id="server-list">
+              <span class="terminal-tab-name">📋</span>
+            </div>
+          </div>
+          <div class="terminal-body" id="terminalBody">
+            <!-- 服务器列表面板（固定第一个 tab） -->
+            <div class="terminal-panel active" id="serverListPanel">
+              <div class="server-page-layout">
+                <!-- 左侧分组 -->
+                <div class="server-group-panel">
+                  <div class="server-group-header">
+                    <button class="server-group-add-btn" data-action="add-group" title="添加分组">+</button>
+                  </div>
+                  <div class="server-group-list" id="serverGroupList">
+                    <div class="server-group-item active" data-action="select-group" data-group="all">
+                      <span class="server-group-name">全部</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- 右侧服务器列表 -->
+                <div class="server-list-container">
+                  <div class="server-list-header">
+                    <div class="server-search-box">
+                      <span class="server-search-icon">🔍</span>
+                      <input type="text" class="server-search-input" id="serverSearchInput" placeholder="搜索名称或地址...">
+                    </div>
+                    <button class="server-add-btn" data-action="batch-exec" title="批量执行命令">⚡</button>
+                    <button class="server-add-btn" data-action="add-server" title="添加服务器">+</button>
+                  </div>
+                  <div class="server-list-table">
+                    <div class="server-list-thead">
+                      <span class="server-col-status"><input type="checkbox" class="server-checkbox" id="serverCheckAll"></span>
+                      <span class="server-col-latency">延迟</span>
+                      <span class="server-col-name">名称 <button class="sort-btn" data-action="sort-servers" data-field="name"><span class="sort-arrows">▲<br>▼</span></button></span>
+                      <span class="server-col-addr">地址 <button class="sort-btn" data-action="sort-servers" data-field="addr"><span class="sort-arrows">▲<br>▼</span></button></span>
+                      <span class="server-col-user">用户</span>
+                      <span class="server-col-info">信息</span>
+                      <span class="server-col-remark">备注</span>
+                      <span class="server-col-action">操作</span>
+                    </div>
+                    <div class="terminal-server-list" id="serverList"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <!-- 添加/编辑分组弹窗 -->
+  <div class="modal" id="groupModal" style="display: none;">
+    <div class="server-modal-content" style="width:360px;">
+      <div class="server-modal-header">
+        <span id="groupModalTitle">添加分组</span>
+        <button class="close-btn" data-action="close-group-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">名称：</label>
+          <input type="text" id="groupNameInput" class="srv-input" placeholder="输入分组名称">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-group-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-group">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑服务器弹窗 -->
+  <div class="modal" id="serverModal" style="display: none;">
+    <div class="server-modal-content">
+      <div class="server-modal-header">
+        <span id="serverModalTitle">添加服务器</span>
+        <button class="close-btn" data-action="close-server-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <input type="hidden" id="serverId">
+        <div class="srv-field">
+          <label class="srv-label">分组：</label>
+          <select id="serverGroup" class="srv-input">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="srv-field">
+          <label class="srv-label"><span class="srv-req">*</span> 名称：</label>
+          <input type="text" id="serverName" class="srv-input" placeholder="我的服务器">
+        </div>
+        <div class="srv-field">
+          <label class="srv-label"><span class="srv-req">*</span> 地址：</label>
+          <input type="text" id="serverWsUrl" class="srv-input srv-input-addr" placeholder="192.168.1.100">
+          <label class="srv-label-sm"><span class="srv-req">*</span> 端口：</label>
+          <input type="number" id="serverPort" class="srv-input srv-input-port" value="22" placeholder="22">
+        </div>
+        <div class="srv-field">
+          <label class="srv-label"><span class="srv-req">*</span> 用户：</label>
+          <input type="text" id="serverUsername" class="srv-input" placeholder="root">
+        </div>
+        <div class="srv-field">
+          <label class="srv-label">认证：</label>
+          <div class="srv-auth-toggle">
+            <button class="srv-auth-btn active" data-action="switch-auth-type" data-auth="password">密码</button>
+            <button class="srv-auth-btn" data-action="switch-auth-type" data-auth="key">密钥</button>
+          </div>
+        </div>
+        <div class="srv-auth-panel" id="authPanelPassword">
+          <div class="srv-field">
+            <label class="srv-label">密码：</label>
+            <input type="password" id="serverPassword" class="srv-input" placeholder="登录密码">
+          </div>
+        </div>
+        <div class="srv-auth-panel" id="authPanelKey" style="display:none;">
+          <div class="srv-field">
+            <label class="srv-label">私钥：</label>
+            <textarea id="serverPrivateKey" class="srv-input srv-textarea" rows="6" placeholder="粘贴私钥内容（-----BEGIN OPENSSH PRIVATE KEY-----）"></textarea>
+          </div>
+          <div class="srv-field">
+            <label class="srv-label">私钥密码：</label>
+            <input type="password" id="serverKeyPassphrase" class="srv-input" placeholder="可选，私钥有密码时填">
+          </div>
+        </div>
+        <input type="hidden" id="serverAuthType" value="password">
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">备注：</label>
+          <input type="text" id="serverRemark" class="srv-input" placeholder="可选">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-server-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-server">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑书签弹窗 -->
+  <div class="modal" id="bookmarkModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="bmModalTitle">添加书签</span>
+        <button class="close-btn" data-action="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="bmId">
+        <input type="hidden" id="bmParentId">
+        <div class="form-group">
+          <label>标题</label>
+          <input type="text" id="bmTitle" placeholder="书签名称">
+        </div>
+        <div class="form-group">
+          <label>网址</label>
+          <input type="url" id="bmUrl" placeholder="https://example.com">
+        </div>
+        <div class="form-group">
+          <label>所属文件夹</label>
+          <div class="tree-select" id="treeSelectContainer">
+            <div class="tree-select-input" id="treeSelectInput">
+              <span class="tree-select-text">书签栏</span>
+              <span class="tree-select-arrow">▼</span>
+            </div>
+            <div class="tree-select-dropdown" id="treeSelectDropdown">
+              <div class="tree-select-options" id="treeSelectOptions"></div>
+            </div>
+          </div>
+          <input type="hidden" id="bmCategory" value="1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-action="close-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-bookmark">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 确认删除弹窗 -->
+  <div class="modal" id="confirmModal" style="display: none;">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <span>确认删除</span>
+        <button class="close-btn" data-action="close-confirm">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage">确定要删除这个书签吗？</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-action="close-confirm">取消</button>
+        <button class="btn btn-danger" data-action="confirm-delete">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入选择弹窗 -->
+  <div class="modal" id="importModal" style="display: none;">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <span>导入书签</span>
+        <button class="close-btn" data-action="close-import">×</button>
+      </div>
+      <div class="modal-body">
+        <p>请选择导入方式：</p>
+        <div class="import-options">
+          <button class="btn btn-secondary" data-action="import-merge">🔗 与现有书签合并</button>
+          <button class="btn btn-danger" data-action="import-replace">🔄 覆盖现有书签</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 快捷命令面板 -->
+  <div class="command-palette-overlay" id="commandPalette" style="display:none;">
+    <div class="command-palette">
+      <div class="command-input-wrapper">
+        <span class="command-input-icon">⌘</span>
+        <input type="text" id="commandInput" placeholder="输入命令或关键词..." autocomplete="off">
+        <span class="command-input-hint">ESC 关闭</span>
+      </div>
+      <div class="command-list" id="commandList"></div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑待办分组弹窗 -->
+  <div class="modal" id="todoGroupModal" style="display: none;">
+    <div class="server-modal-content" style="width:360px;">
+      <div class="server-modal-header">
+        <span id="todoGroupModalTitle">添加分组</span>
+        <button class="close-btn" data-action="close-todo-group-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">名称：</label>
+          <input type="text" id="todoGroupNameInput" class="srv-input" placeholder="输入分组名称">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-todo-group-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-todo-group">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑待办弹窗 -->
+  <div class="modal" id="todoEditModal" style="display: none;">
+    <div class="server-modal-content" style="width:440px;">
+      <div class="server-modal-header">
+        <span>编辑待办</span>
+        <button class="close-btn" data-action="close-todo-edit-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <input type="hidden" id="todoEditId">
+        <div class="srv-field">
+          <label class="srv-label">标题：</label>
+          <input type="text" id="todoEditTitle" class="srv-input" placeholder="待办内容">
+        </div>
+        <div class="srv-field">
+          <label class="srv-label">优先级：</label>
+          <select id="todoEditPriority" class="srv-input">
+            <option value="high">紧急</option>
+            <option value="normal">普通</option>
+            <option value="low">不急</option>
+          </select>
+        </div>
+        <div class="srv-field">
+          <label class="srv-label">分组：</label>
+          <select id="todoEditGroup" class="srv-input"></select>
+        </div>
+        <div class="srv-field">
+          <label class="srv-label">链接：</label>
+          <input type="url" id="todoEditLink" class="srv-input" placeholder="关联 URL（可选）">
+        </div>
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">备注：</label>
+          <input type="text" id="todoEditNote" class="srv-input" placeholder="简短备注（可选）">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-todo-edit-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-todo-edit">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批量执行命令弹窗 -->
+  <div class="modal" id="batchExecModal" style="display: none;">
+    <div class="server-modal-content" style="width:700px;">
+      <div class="server-modal-header">
+        <span>批量执行命令</span>
+        <button class="close-btn" data-action="close-batch-exec">×</button>
+      </div>
+      <div class="server-modal-body">
+        <div class="batch-exec-targets" id="batchExecTargets"></div>
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">命令：</label>
+          <input type="text" id="batchExecCmd" class="srv-input" placeholder="输入要执行的命令，如 df -h">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-batch-exec">取消</button>
+        <button class="btn btn-primary" data-action="run-batch-exec">执行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- xterm.js (UMD, 全局变量) -->
+  <link rel="stylesheet" href="./lib/xterm.min.css">
+  <script src="./lib/xterm.min.js"></script>
+  <script src="./lib/xterm-addon-fit.min.js"></script>
+
+  <!-- 主入口 (Vite + TypeScript) -->
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

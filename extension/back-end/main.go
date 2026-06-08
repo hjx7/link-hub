@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -612,12 +613,7 @@ func base64Decode(s string) ([]byte, error) {
 }
 
 func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
+	return strings.Index(s, substr)
 }
 
 func main() {
@@ -701,6 +697,25 @@ func runServer() {
 	if err == nil {
 		log.SetOutput(logFile)
 	}
+
+	// 定时清理超时的上传会话（5分钟未活动则关闭）
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			uploadSessions.Lock()
+			for key, sess := range uploadSessions.sessions {
+				if time.Since(sess.lastAccess) > 5*time.Minute {
+					sess.file.Close()
+					sess.sftpClient.Close()
+					sess.client.Close()
+					delete(uploadSessions.sessions, key)
+					log.Printf("[upload] cleaned up stale session: %s", key)
+				}
+			}
+			uploadSessions.Unlock()
+		}
+	}()
 
 	http.HandleFunc("/ws", handleWebSocket)
 
@@ -1113,13 +1128,8 @@ func handleExec(w http.ResponseWriter, r *http.Request) {
 }
 
 func splitPath(path string) []string {
-	var parts []string
-	for _, p := range filepath.SplitList(path) {
-		parts = append(parts, p)
-	}
-	// 简单按 / 分割
 	result := []string{}
-	for _, p := range split(path, '/') {
+	for _, p := range strings.Split(path, "/") {
 		if p != "" {
 			result = append(result, p)
 		}
@@ -1128,21 +1138,4 @@ func splitPath(path string) []string {
 		return []string{"download"}
 	}
 	return result
-}
-
-func split(s string, sep byte) []string {
-	var parts []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep {
-			if i > start {
-				parts = append(parts, s[start:i])
-			}
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		parts = append(parts, s[start:])
-	}
-	return parts
 }
