@@ -40,18 +40,18 @@ execSync('npx vite build', { cwd: root, stdio: 'inherit' });
 console.log('→ Building scripts...');
 
 const scripts = [
-  { entry: 'src/background.ts', out: 'dist/background.js' },
-  { entry: 'src/content.ts', out: 'dist/content.js' },
-  { entry: 'src/command.ts', out: 'dist/command/command.js' },
+  { entry: 'src/background.ts', out: 'dist/background.js', bundle: false },
+  { entry: 'src/content.ts', out: 'dist/content.js', bundle: false },
+  { entry: 'src/command.ts', out: 'dist/command/command.js', bundle: true },
 ];
 
-for (const { entry, out } of scripts) {
+for (const { entry, out, bundle } of scripts) {
   const outPath = resolve(root, out);
   mkdirSync(dirname(outPath), { recursive: true });
   buildSync({
     entryPoints: [resolve(root, entry)],
     outfile: outPath,
-    bundle: false,
+    bundle,
     format: 'iife',
     target: 'es2020',
     minify: false,

@@ -23,12 +23,9 @@
       background: transparent;
     }
 
-    .overlay {
+    #overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0, 0, 0, 0.4);
       display: flex;
       align-items: flex-start;
@@ -37,7 +34,7 @@
       backdrop-filter: blur(2px);
     }
 
-    .palette {
+    .command-palette {
       width: 560px;
       max-height: 480px;
       background: var(--white);
@@ -48,7 +45,7 @@
       flex-direction: column;
     }
 
-    .input-wrapper {
+    .command-input-wrapper {
       display: flex;
       align-items: center;
       padding: 12px 16px;
@@ -56,13 +53,13 @@
       gap: 10px;
     }
 
-    .input-icon {
+    .command-input-icon {
       font-size: 18px;
       color: var(--text-light);
       flex-shrink: 0;
     }
 
-    .input-wrapper input {
+    .command-input-wrapper input {
       flex: 1;
       border: none;
       outline: none;
@@ -71,11 +68,11 @@
       color: var(--text);
     }
 
-    .input-wrapper input::placeholder {
+    .command-input-wrapper input::placeholder {
       color: var(--text-light);
     }
 
-    .input-hint {
+    .command-input-hint {
       font-size: 12px;
       color: var(--text-light);
       background: var(--bg-light);
@@ -84,13 +81,13 @@
       flex-shrink: 0;
     }
 
-    .list {
+    .command-list {
       overflow-y: auto;
       max-height: 400px;
       padding: 8px;
     }
 
-    .item {
+    .command-item {
       display: flex;
       align-items: center;
       gap: 12px;
@@ -100,15 +97,15 @@
       transition: background 0.1s;
     }
 
-    .item:hover, .item.selected {
+    .command-item:hover, .command-item.selected {
       background: var(--bg-light);
     }
 
-    .item.selected {
+    .command-item.selected {
       background: var(--primary-light);
     }
 
-    .item-icon {
+    .command-item-icon {
       width: 28px;
       height: 28px;
       display: flex;
@@ -120,11 +117,11 @@
       flex-shrink: 0;
     }
 
-    .item.selected .item-icon {
+    .command-item.selected .command-item-icon {
       background: var(--white);
     }
 
-    .item-info {
+    .command-item-info {
       flex: 1;
       min-width: 0;
       display: flex;
@@ -132,7 +129,7 @@
       gap: 2px;
     }
 
-    .item-title {
+    .command-item-title {
       font-size: 14px;
       font-weight: 500;
       color: var(--text);
@@ -141,7 +138,7 @@
       text-overflow: ellipsis;
     }
 
-    .item-desc {
+    .command-item-desc {
       font-size: 12px;
       color: var(--text-light);
       white-space: nowrap;
@@ -149,7 +146,7 @@
       text-overflow: ellipsis;
     }
 
-    .item-type {
+    .command-item-type {
       font-size: 11px;
       color: var(--text-light);
       background: var(--bg-light);
@@ -158,7 +155,7 @@
       flex-shrink: 0;
     }
 
-    .empty {
+    .command-empty {
       text-align: center;
       padding: 24px;
       color: var(--text-light);
@@ -167,14 +164,14 @@
   </style>
 </head>
 <body>
-  <div class="overlay" id="overlay">
-    <div class="palette">
-      <div class="input-wrapper">
-        <span class="input-icon">⌘</span>
+  <div id="overlay">
+    <div class="command-palette">
+      <div class="command-input-wrapper">
+        <span class="command-input-icon">⌘</span>
         <input type="text" id="input" placeholder="输入命令或关键词..." autocomplete="off">
-        <span class="input-hint">ESC 关闭</span>
+        <span class="command-input-hint">ESC 关闭</span>
       </div>
-      <div class="list" id="list"></div>
+      <div class="command-list" id="list"></div>
     </div>
   </div>
   <script src="../newtab/js/data.js"></script>

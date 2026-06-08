@@ -126,6 +126,27 @@ function setupEventListeners(): void {
     });
   });
 
+  // 全局图片加载失败处理（favicon 回退到首字）
+  document.addEventListener('error', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'IMG' && target.classList.contains('favicon-img')) {
+      target.style.display = 'none';
+      // 检查是否有相邻的 fallback 元素
+      const fallback = target.nextElementSibling as HTMLElement | null;
+      if (fallback && fallback.classList.contains('favicon-fallback')) {
+        fallback.style.display = 'flex';
+      } else {
+        // 书签模块：用 data-fallback-letter 或父容器内创建首字
+        const letter = (target as HTMLImageElement).dataset.fallbackLetter || '🔗';
+        const span = document.createElement('span');
+        span.className = 'favicon-fallback';
+        span.style.display = 'flex';
+        span.textContent = letter;
+        target.parentElement?.appendChild(span);
+      }
+    }
+  }, true);
+
   // 全局事件委托
   document.addEventListener('click', handleGlobalClick);
 }

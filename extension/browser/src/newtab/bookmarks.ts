@@ -80,7 +80,8 @@ async function fetchFaviconAsync(url, cacheKey) {
 function updateFaviconInDOM(url, iconUrl) {
   const iconElements = document.querySelectorAll(`.favicon-loading[data-url="${url}"]`);
   iconElements.forEach(el => {
-    el.outerHTML = `<img src="${iconUrl}" class="favicon-img">`;
+    const letter = el.textContent || '🔗';
+    el.outerHTML = `<img src="${iconUrl}" class="favicon-img" data-fallback-letter="${escapeHtml(letter)}">`;
   });
 }
 
