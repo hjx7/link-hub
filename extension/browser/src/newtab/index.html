@@ -34,6 +34,10 @@
           <span class="nav-icon">📝</span>
           <span class="nav-text">待办</span>
         </button>
+        <button class="nav-item" data-page="snippets">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">片段</span>
+        </button>
         <button class="nav-item" data-page="terminal">
           <span class="nav-icon">💻</span>
           <span class="nav-text">终端</span>
@@ -434,6 +438,26 @@
         </div>
       </div>
 
+      <!-- 片段页 -->
+      <div class="page" id="page-snippets">
+        <div class="snippet-container">
+          <div class="snippet-header">
+            <div class="snippet-search-box">
+              <span class="snippet-search-icon">🔍</span>
+              <input type="text" class="snippet-search-input" id="snippetSearch" placeholder="搜索片段...">
+            </div>
+            <button class="btn btn-primary btn-sm" data-action="add-snippet">+ 添加片段</button>
+          </div>
+          <div class="snippet-layout">
+            <div class="snippet-group-panel">
+              <div class="snippet-group-list" id="snippetGroupList"></div>
+              <button class="snippet-group-add-btn" data-action="add-snippet-group">+ 添加分组</button>
+            </div>
+            <div class="snippet-list" id="snippetList"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- 终端页 -->
       <div class="page" id="page-terminal">
         <div class="terminal-container">
@@ -717,6 +741,72 @@
       <div class="server-modal-footer">
         <button class="btn btn-secondary" data-action="close-todo-edit-modal">取消</button>
         <button class="btn btn-primary" data-action="save-todo-edit">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑片段弹窗 -->
+  <div class="modal" id="snippetModal" style="display: none;">
+    <div class="server-modal-content" style="width:560px;">
+      <div class="server-modal-header">
+        <span id="snippetModalTitle">添加片段</span>
+        <button class="close-btn" data-action="close-snippet-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <input type="hidden" id="snippetEditId">
+        <div class="srv-field">
+          <label class="srv-label">名称：</label>
+          <input type="text" id="snippetEditTitle" class="srv-input" placeholder="片段名称">
+        </div>
+        <div class="srv-field">
+          <label class="srv-label">语言：</label>
+          <select id="snippetEditLanguage" class="srv-input">
+            <option value="shell">Shell</option>
+            <option value="sql">SQL</option>
+            <option value="javascript">JavaScript</option>
+            <option value="typescript">TypeScript</option>
+            <option value="python">Python</option>
+            <option value="go">Go</option>
+            <option value="java">Java</option>
+            <option value="json">JSON</option>
+            <option value="yaml">YAML</option>
+            <option value="text">纯文本</option>
+          </select>
+        </div>
+        <div class="srv-field">
+          <label class="srv-label">分组：</label>
+          <select id="snippetEditGroup" class="srv-input">
+            <option value="">无分组</option>
+          </select>
+        </div>
+        <div class="srv-field srv-field-last">
+          <label class="srv-label" style="align-self:flex-start;margin-top:10px;">内容：</label>
+          <textarea id="snippetEditContent" class="srv-input srv-textarea" rows="10" placeholder="输入代码片段内容..." style="font-family:'JetBrains Mono','Consolas',monospace;font-size:13px;"></textarea>
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-snippet-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-snippet">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 片段分组弹窗 -->
+  <div class="modal" id="snippetGroupModal" style="display: none;">
+    <div class="server-modal-content" style="width:360px;">
+      <div class="server-modal-header">
+        <span id="snippetGroupModalTitle">添加分组</span>
+        <button class="close-btn" data-action="close-snippet-group-modal">×</button>
+      </div>
+      <div class="server-modal-body">
+        <div class="srv-field srv-field-last">
+          <label class="srv-label">名称：</label>
+          <input type="text" id="snippetGroupNameInput" class="srv-input" placeholder="输入分组名称">
+        </div>
+      </div>
+      <div class="server-modal-footer">
+        <button class="btn btn-secondary" data-action="close-snippet-group-modal">取消</button>
+        <button class="btn btn-primary" data-action="save-snippet-group">保存</button>
       </div>
     </div>
   </div>

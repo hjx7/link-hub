@@ -34,8 +34,14 @@ import {
   addTodoGroup, saveTodoGroup, closeTodoGroupModal,
   deleteTodoGroup, selectTodoGroup
 } from './todo';
+import {
+  initSnippets, openAddSnippet, openEditSnippet, saveSnippet, deleteSnippet,
+  closeSnippetModal, copySnippet, sendSnippetToTerminal,
+  addSnippetGroup, saveSnippetGroup, closeSnippetGroupModal,
+  deleteSnippetGroup, selectSnippetGroup
+} from './snippets';
 
-const VALID_PAGES = ['sites', 'bookmarks', 'tools', 'todo', 'terminal'] as const;
+const VALID_PAGES = ['sites', 'bookmarks', 'tools', 'todo', 'snippets', 'terminal'] as const;
 type PageName = typeof VALID_PAGES[number];
 
 let currentPage: PageName = 'sites';
@@ -50,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (hash) {
     if (hash.startsWith('tools:')) {
       currentPage = 'tools';
-    } else if (['sites', 'bookmarks', 'tools', 'todo', 'terminal'].includes(hash)) {
+    } else if (VALID_PAGES.includes(hash as PageName)) {
       currentPage = hash as PageName;
     }
   }
@@ -93,6 +99,9 @@ function render(): void {
       break;
     case 'todo':
       initTodo();
+      break;
+    case 'snippets':
+      initSnippets();
       break;
     case 'bookmarks':
       initBookmarks();
@@ -399,6 +408,44 @@ function handleGlobalClick(e: MouseEvent): void {
       break;
     case 'close-todo-edit-modal':
       closeEditTodoModal();
+      break;
+    // 片段
+    case 'add-snippet':
+      openAddSnippet();
+      break;
+    case 'edit-snippet':
+      openEditSnippet(actionTarget.dataset.id!);
+      break;
+    case 'save-snippet':
+      saveSnippet();
+      break;
+    case 'delete-snippet':
+      deleteSnippet(actionTarget.dataset.id!);
+      break;
+    case 'close-snippet-modal':
+      closeSnippetModal();
+      break;
+    case 'copy-snippet':
+      copySnippet(actionTarget.dataset.id!);
+      break;
+    case 'send-snippet':
+      sendSnippetToTerminal(actionTarget.dataset.id!);
+      break;
+    case 'add-snippet-group':
+      addSnippetGroup();
+      break;
+    case 'save-snippet-group':
+      saveSnippetGroup();
+      break;
+    case 'close-snippet-group-modal':
+      closeSnippetGroupModal();
+      break;
+    case 'delete-snippet-group':
+      e.stopPropagation();
+      deleteSnippetGroup(actionTarget.dataset.group!);
+      break;
+    case 'select-snippet-group':
+      selectSnippetGroup(actionTarget.dataset.group!);
       break;
   }
 }

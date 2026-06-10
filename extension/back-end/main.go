@@ -315,6 +315,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			go func() {
 				defer func() { recover() }()
 				buf := make([]byte, 8192)
+				pendingOutput := "" // 缓存可能包含不完整 CWD 标记的输出
 				for {
 					n, err := stdoutPipe.Read(buf)
 					if err != nil {
@@ -323,7 +324,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					if n > 0 {
-						output := string(buf[:n])
+						output := pendingOutput + string(buf[:n])
+						pendingOutput = ""
+
+						// 如果输出末尾可能包含不完整的 CWD 标记，暂存等待下一次读取
+						if strings.Contains(output, "__LINKHUB_CWD_START__") && !strings.Contains(output, "__LINKHUB_CWD_END__") {
+							pendingOutput = output
+							continue
+						}
 
 						// 检测 CWD 标记并提取路径
 						for {

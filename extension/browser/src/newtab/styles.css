@@ -5370,3 +5370,256 @@ select.srv-input option:checked {
   background: var(--primary);
   border-color: var(--primary);
 }
+
+/* ============================
+   代码片段模块样式
+   ============================ */
+
+.snippet-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.snippet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.snippet-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+
+.snippet-search-icon {
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.snippet-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  background: transparent;
+  color: var(--text-dark);
+}
+
+.snippet-search-input::placeholder {
+  color: var(--text-light);
+}
+
+.snippet-layout {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* 左侧分组面板 */
+.snippet-group-panel {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.snippet-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.snippet-group-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 13px;
+  color: var(--text-medium);
+}
+
+.snippet-group-item:hover {
+  background: var(--bg);
+}
+
+.snippet-group-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.snippet-group-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.snippet-group-count {
+  font-size: 11px;
+  color: var(--text-light);
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.snippet-group-del {
+  font-size: 14px;
+  color: var(--text-light);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.snippet-group-item:hover .snippet-group-del {
+  opacity: 1;
+}
+
+.snippet-group-del:hover {
+  color: var(--error);
+}
+
+.snippet-group-add-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-light);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.snippet-group-add-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* 右侧片段列表 */
+.snippet-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.snippet-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+/* 片段卡片 */
+.snippet-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.snippet-card:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: var(--primary-light);
+}
+
+.snippet-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.snippet-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.snippet-card-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.snippet-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.snippet-tag-lang {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.snippet-tag-group {
+  background: var(--bg);
+  color: var(--text-medium);
+}
+
+.snippet-card-code {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--bg);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-dark);
+  overflow-x: auto;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.snippet-card-code code {
+  white-space: pre;
+}
+
+.snippet-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.snippet-action-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--white);
+  color: var(--text-medium);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.snippet-action-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.snippet-action-del:hover {
+  border-color: var(--error);
+  color: var(--error);
+  background: rgba(234, 67, 53, 0.05);
+}

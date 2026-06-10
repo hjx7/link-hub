@@ -81,9 +81,10 @@ function handleWsMessage(conn, connId, ws, msg) {
       break;
     case 'cwd':
       if (msg.data) {
-        const currentDisplayPath = document.getElementById(`filepath-${connId}`)?.textContent;
-        if (msg.data !== currentDisplayPath) {
-          ws.send(JSON.stringify({ type: 'listDir', path: msg.data }));
+        const newPath = msg.data.trim();
+        const currentDisplayPath = (document.getElementById(`filepath-${connId}`)?.textContent || '').trim();
+        if (newPath && newPath !== currentDisplayPath) {
+          ws.send(JSON.stringify({ type: 'listDir', path: newPath }));
         }
       }
       break;
@@ -185,6 +186,17 @@ function initTerminal() {
     const groupItem = e.target.closest('.server-group-item');
     if (groupItem && groupItem.dataset.group && groupItem.dataset.group !== 'all') {
       showGroupContextMenu(e, groupItem.dataset.group);
+    }
+  });
+
+  // 监听片段发送事件
+  document.addEventListener('linkhub-send-to-terminal', (e) => {
+    const content = e.detail;
+    if (!content) return;
+    // 找到当前活跃的终端连接
+    const conn = _connections.find(c => c.id === _activeTabId);
+    if (conn && conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify({ type: 'input', data: content }));
     }
   });
 }
@@ -669,7 +681,7 @@ function connectServer(serverId) {
       selectionBackground: '#264f78',
       black: '#1e1e1e',
       red: '#f44747',
-      green: '#6a9955',
+      green: '#89d185',
       yellow: '#d7ba7d',
       blue: '#569cd6',
       magenta: '#c586c0',
@@ -780,15 +792,22 @@ function connectServer(serverId) {
       if (data === '\r' || data === '\n') {
         const cmd = _inputBuffer.trim();
         _inputBuffer = '';
-        if (cmd === 'cd' || cmd.startsWith('cd ')) {
+        // 检测 cd 类命令（cd、pushd、popd 或以 && cd / ; cd 结尾的组合命令）
+        if (cmd === 'cd' || cmd.startsWith('cd ') || cmd.includes(' cd ') ||
+            cmd.includes('&&cd') || cmd.includes('&& cd') ||
+            cmd.includes(';cd') || cmd.includes('; cd') ||
+            cmd === 'pushd' || cmd.startsWith('pushd ') ||
+            cmd === 'popd') {
           setTimeout(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'getCwd' }));
             }
-          }, 500);
+          }, 800);
         }
       } else if (data === '\x7f' || data === '\b') {
         _inputBuffer = _inputBuffer.slice(0, -1);
+      } else if (data === '\t') {
+        // Tab 补全 - 不清除 buffer，等回车时统一判断
       } else if (data.length === 1 && data >= ' ') {
         _inputBuffer += data;
       } else if (data.length > 1 && !data.includes('\x1b')) {
