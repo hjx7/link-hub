@@ -4082,17 +4082,20 @@ select.srv-input option:checked {
 .term-file-pages {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 2px;
+  flex-wrap: wrap;
+  flex: 1;
 }
 
 .term-page-btn {
-  min-width: 28px;
-  height: 28px;
+  flex: 1;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
   border: 1px solid #555;
   background: #333;
   color: #eee;
-  font-size: 13px;
+  font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
@@ -4103,7 +4106,40 @@ select.srv-input option:checked {
 
 .term-page-btn:hover:not(:disabled) {
   background: #444;
+}
+
+.term-page-ellipsis {
+  color: #888;
+  font-size: 12px;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.term-page-info {
+  font-size: 12px;
+  color: #aaa;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.term-file-search {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #222;
+  color: #eee;
+  font-size: 12px;
+  outline: none;
+  margin-top: 4px;
+}
+
+.term-file-search:focus {
   border-color: #7cb8ff;
+}
+
+.term-file-search::placeholder {
+  color: #666;
 }
 
 .term-page-btn.active {

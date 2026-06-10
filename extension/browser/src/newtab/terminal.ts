@@ -1069,23 +1069,56 @@ function renderFileList(connId, path, files) {
     }
   }
 
-  // 分页栏（放到顶部，始终显示两行）
+  // 顶部信息栏：统计 + 搜索 + 分页
   const pagerEl = document.getElementById(`filepager-${connId}`);
   if (pagerEl) {
     let pagerHtml = `<div class="term-file-stats-line">${fileCount} 个文件，${dirCount} 个文件夹</div>`;
-    pagerHtml += `<div class="term-file-pages">`;
-    pagerHtml += `<button class="term-page-btn" data-action="file-page" data-conn="${connId}" data-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
-    for (let i = 1; i <= totalPages; i++) {
-      pagerHtml += `<button class="term-page-btn ${i === currentPage ? 'active' : ''}" data-action="file-page" data-conn="${connId}" data-page="${i}">${i}</button>`;
+    if (totalPages > 1) {
+      pagerHtml += `<div class="term-file-pages">`;
+      pagerHtml += `<button class="term-page-btn" data-action="file-page" data-conn="${connId}" data-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
+
+      // 智能分页：最多显示 5 个页码按钮
+      const maxVisible = 5;
+      let pages = [];
+      if (totalPages <= maxVisible) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        let start = Math.max(2, currentPage - 1);
+        let end = Math.min(totalPages - 1, currentPage + 1);
+        if (currentPage <= 3) { start = 2; end = maxVisible - 1; }
+        if (currentPage >= totalPages - 2) { start = totalPages - maxVisible + 2; end = totalPages - 1; }
+        if (start > 2) pages.push(-1);
+        for (let i = start; i <= end; i++) pages.push(i);
+        if (end < totalPages - 1) pages.push(-1);
+        pages.push(totalPages);
+      }
+
+      for (const p of pages) {
+        if (p === -1) {
+          pagerHtml += `<span class="term-page-ellipsis">…</span>`;
+        } else {
+          pagerHtml += `<button class="term-page-btn ${p === currentPage ? 'active' : ''}" data-action="file-page" data-conn="${connId}" data-page="${p}">${p}</button>`;
+        }
+      }
+
+      pagerHtml += `<button class="term-page-btn" data-action="file-page" data-conn="${connId}" data-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+      pagerHtml += `</div>`;
     }
-    pagerHtml += `<button class="term-page-btn" data-action="file-page" data-conn="${connId}" data-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
-    pagerHtml += `</div>`;
+    pagerHtml += `<input type="text" class="term-file-search" id="filesearch-${connId}" placeholder="搜索文件..." data-conn="${connId}">`;
     pagerEl.innerHTML = pagerHtml;
+
+    // 绑定搜索事件
+    const searchInput = document.getElementById(`filesearch-${connId}`);
+    searchInput?.addEventListener('input', () => {
+      const query = searchInput.value.trim().toLowerCase();
+      filterFileList(connId, query);
+    });
   }
 
   listEl.innerHTML = html;
 
-  // 保存文件数据用于翻页
+  // 保存文件数据用于翻页和搜索
   listEl._filesData = { path, files };
 }
 
@@ -1104,6 +1137,51 @@ function formatFileSize(bytes) {
   const units = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+}
+
+// 搜索过滤文件列表
+function filterFileList(connId, query) {
+  const listEl = document.getElementById(`filelist-${connId}`);
+  if (!listEl || !listEl._filesData) return;
+
+  const { path, files } = listEl._filesData;
+
+  if (!query) {
+    // 清空搜索，恢复正常分页显示
+    renderFileList(connId, path, files);
+    return;
+  }
+
+  // 过滤匹配的文件
+  const filtered = files.filter(f => f.name.toLowerCase().includes(query));
+
+  let html = '';
+  for (const f of filtered) {
+    const icon = f.isDir ? '📁' : '📄';
+    const size = f.isDir ? '' : formatFileSize(f.size);
+    const itemPath = path === '/' ? '/' + f.name : path + '/' + f.name;
+    if (f.isDir) {
+      html += `<div class="term-file-item" data-action="nav-dir" data-conn="${connId}" data-path="${itemPath}" data-name="${escapeHtml(f.name)}" data-isdir="true" data-filepath="${itemPath}">
+        <span class="term-file-icon">${icon}</span>
+        <span class="term-file-name">${escapeHtml(f.name)}</span>
+        <span class="term-file-size">${size}</span>
+      </div>`;
+    } else {
+      const editable = isEditableFile(f.name);
+      const fileAction = editable ? 'data-action="open-text-file"' : '';
+      html += `<div class="term-file-item ${editable ? 'term-file-clickable' : ''}" ${fileAction} data-name="${escapeHtml(f.name)}" data-isdir="false" data-filepath="${itemPath}" data-conn="${connId}">
+        <span class="term-file-icon">${icon}</span>
+        <span class="term-file-name">${escapeHtml(f.name)}</span>
+        <span class="term-file-size">${size}</span>
+      </div>`;
+    }
+  }
+
+  if (filtered.length === 0) {
+    html = `<div class="term-file-error">无匹配结果</div>`;
+  }
+
+  listEl.innerHTML = html;
 }
 
 // 刷新文件列表
