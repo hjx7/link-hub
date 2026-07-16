@@ -22,14 +22,12 @@ Name: "{group}\LinkHub SSH Server"; Filename: "{app}\linkhub-ssh.exe"
 Name: "{group}\卸载 LinkHub SSH"; Filename: "{uninstallexe}"
 
 [Run]
-; 安装完成后立即启动（隐藏窗口）
-Filename: "{app}\linkhub-ssh.exe"; Parameters: "-action run"; Flags: nowait runhidden postinstall
-
-[Registry]
-; 注册开机自启（当前用户）
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "LinkHubSSH"; ValueData: """{app}\linkhub-ssh.exe"" -action run"; Flags: uninsdeletevalue
+; 注册开机自启并立即隐藏启动
+Filename: "{app}\linkhub-ssh.exe"; Parameters: "-action install"; Flags: runhidden waituntilterminated
 
 [UninstallRun]
+; 卸载时清理开机自启
+Filename: "{app}\linkhub-ssh.exe"; Parameters: "-action uninstall"; Flags: runhidden waituntilterminated
 ; 卸载时结束进程
 Filename: "taskkill"; Parameters: "/F /IM linkhub-ssh.exe"; Flags: runhidden
 
@@ -41,6 +39,15 @@ var
 begin
   if CurStep = ssInstall then
   begin
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'LinkHubSSH');
     Exec('taskkill', '/F /IM linkhub-ssh.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'LinkHubSSH');
   end;
 end;

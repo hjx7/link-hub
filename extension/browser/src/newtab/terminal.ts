@@ -742,7 +742,6 @@ function connectServer(serverId) {
   bindWsEvents(conn, connId, ws);
 
   // 终端输入
-  let _inputBuffer = '';
   terminal.onData((data) => {
     // 密码输入模式
     if (conn._waitingPassword) {
@@ -753,7 +752,7 @@ function connectServer(serverId) {
         conn._passwordBuffer = '';
         // 发送连接请求
         const dims = fitAddon.proposeDimensions();
-        ws.send(JSON.stringify({
+        conn.ws.send(JSON.stringify({
           type: 'connect',
           host: host,
           port: server.port || 22,
@@ -774,7 +773,7 @@ function connectServer(serverId) {
       return;
     }
 
-    if (ws.readyState === WebSocket.OPEN) {
+    if (conn.ws.readyState === WebSocket.OPEN) {
       // SSH 断开但 WebSocket 仍连接时，按回车触发重连
       if (conn._disconnected && (data === '\r' || data === '\n')) {
         if (conn._autoReconnectTimer) {
@@ -786,34 +785,7 @@ function connectServer(serverId) {
         return;
       }
 
-      ws.send(JSON.stringify({ type: 'input', data }));
-
-      // 只在检测到 cd 命令时才刷新文件列表
-      if (data === '\r' || data === '\n') {
-        const cmd = _inputBuffer.trim();
-        _inputBuffer = '';
-        // 检测 cd 类命令（cd、pushd、popd 或以 && cd / ; cd 结尾的组合命令）
-        if (cmd === 'cd' || cmd.startsWith('cd ') || cmd.includes(' cd ') ||
-            cmd.includes('&&cd') || cmd.includes('&& cd') ||
-            cmd.includes(';cd') || cmd.includes('; cd') ||
-            cmd === 'pushd' || cmd.startsWith('pushd ') ||
-            cmd === 'popd') {
-          setTimeout(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'getCwd' }));
-            }
-          }, 800);
-        }
-      } else if (data === '\x7f' || data === '\b') {
-        _inputBuffer = _inputBuffer.slice(0, -1);
-      } else if (data === '\t') {
-        // Tab 补全 - 不清除 buffer，等回车时统一判断
-      } else if (data.length === 1 && data >= ' ') {
-        _inputBuffer += data;
-      } else if (data.length > 1 && !data.includes('\x1b')) {
-        // 粘贴的文本
-        _inputBuffer += data;
-      }
+      conn.ws.send(JSON.stringify({ type: 'input', data }));
     } else if (conn._disconnected && (data === '\r' || data === '\n')) {
       // 断开后按回车重连
       if (conn._autoReconnectTimer) {
@@ -830,8 +802,8 @@ function connectServer(serverId) {
     if (_activeTabId === connId) {
       fitAddon.fit();
       const dims = fitAddon.proposeDimensions();
-      if (dims && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+      if (dims && conn.ws.readyState === WebSocket.OPEN) {
+        conn.ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
       }
     }
   };

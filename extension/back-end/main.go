@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +27,12 @@ var (
 	port  int
 	token string
 	bind  string
+)
+
+const (
+	linkhubCwdOSC       = "\x1b]777;linkhub-cwd:"
+	linkhubCwdBEL       = "\x07"
+	linkhubInstallShell = `__linkhub_report_cwd(){ printf '\033]777;linkhub-cwd:%s\007' "$PWD"; }; if [ -n "$ZSH_VERSION" ]; then autoload -Uz add-zsh-hook 2>/dev/null; if command -v add-zsh-hook >/dev/null 2>&1; then add-zsh-hook precmd __linkhub_report_cwd 2>/dev/null; else precmd_functions+=(__linkhub_report_cwd); fi; elif [ -n "$BASH_VERSION" ]; then case ";$PROMPT_COMMAND;" in *";__linkhub_report_cwd;"*) ;; *) PROMPT_COMMAND="__linkhub_report_cwd${PROMPT_COMMAND:+;$PROMPT_COMMAND}";; esac; else PS1='$( __linkhub_report_cwd )'"$PS1"; fi; __linkhub_report_cwd`
 )
 
 type Message struct {
@@ -76,6 +84,201 @@ func (s *SSHSession) Close() {
 	if s.client != nil {
 		s.client.Close()
 	}
+}
+
+func stripLineContaining(output, needle string) string {
+	for {
+		pos := strings.Index(output, needle)
+		if pos == -1 {
+			return output
+		}
+		lineStart := pos
+		for lineStart > 0 && output[lineStart-1] != '\n' && output[lineStart-1] != '\r' {
+			lineStart--
+		}
+		lineEnd := pos + len(needle)
+		for lineEnd < len(output) && output[lineEnd] != '\n' && output[lineEnd] != '\r' {
+			lineEnd++
+		}
+		for lineEnd < len(output) && (output[lineEnd] == '\n' || output[lineEnd] == '\r') {
+			lineEnd++
+		}
+		output = output[:lineStart] + output[lineEnd:]
+	}
+}
+
+func extractCwdReports(output string, safeSend func(Message)) (string, string) {
+	pending := ""
+
+	if start := strings.LastIndex(output, linkhubCwdOSC); start != -1 {
+		if strings.Index(output[start:], linkhubCwdBEL) == -1 {
+			pending = output[start:]
+			output = output[:start]
+		}
+	}
+
+	for {
+		start := strings.Index(output, linkhubCwdOSC)
+		if start == -1 {
+			break
+		}
+		end := strings.Index(output[start+len(linkhubCwdOSC):], linkhubCwdBEL)
+		if end == -1 {
+			pending = output[start:]
+			output = output[:start]
+			break
+		}
+		cwdStart := start + len(linkhubCwdOSC)
+		cwdEnd := cwdStart + end
+		cwd := output[cwdStart:cwdEnd]
+		if cwd != "" {
+			safeSend(Message{Type: "cwd", Data: cwd})
+		}
+		output = output[:start] + output[cwdEnd+len(linkhubCwdBEL):]
+	}
+
+	return output, pending
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
+}
+
+func runSSHCommand(client *ssh.Client, command string) ([]byte, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+	return session.CombinedOutput(command)
+}
+
+func runSSHCommandWithInput(client *ssh.Client, command string, input []byte) ([]byte, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+	session.Stdin = bytes.NewReader(input)
+	return session.CombinedOutput(command)
+}
+
+func sudoCommand(command string) string {
+	return "sudo -n sh -c " + shellQuote(command)
+}
+
+func getRemoteHome(client *ssh.Client) string {
+	out, err := runSSHCommand(client, "printf %s \"$HOME\"")
+	if err != nil || len(out) == 0 {
+		return "/"
+	}
+	home := strings.TrimSpace(string(out))
+	if home == "" {
+		return "/"
+	}
+	return home
+}
+
+func sudoRealPath(client *ssh.Client, path string) (string, error) {
+	if path == "" || path == "." {
+		path = getRemoteHome(client)
+	}
+	cmd := sudoCommand("realpath -- " + shellQuote(path))
+	out, err := runSSHCommand(client, cmd)
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	realPath := strings.TrimSpace(string(out))
+	if realPath == "" {
+		return path, nil
+	}
+	return realPath, nil
+}
+
+func sudoListDir(client *ssh.Client, dirPath string) (string, []FileInfo, error) {
+	realPath, err := sudoRealPath(client, dirPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("sudo list dir failed: %v", err)
+	}
+
+	cmd := sudoCommand("find " + shellQuote(realPath) + " -mindepth 1 -maxdepth 1 -printf '%f\\t%s\\t%y\\t%M\\t%TY-%Tm-%Td %TH:%TM:%TS\\n'")
+	out, err := runSSHCommand(client, cmd)
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", nil, fmt.Errorf("sudo list dir failed: %s", msg)
+	}
+
+	var files []FileInfo
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 5)
+		if len(parts) < 5 {
+			continue
+		}
+		size, _ := strconv.ParseInt(parts[1], 10, 64)
+		files = append(files, FileInfo{
+			Name:  parts[0],
+			Size:  size,
+			IsDir: parts[2] == "d",
+			Mode:  parts[3],
+			Time:  parts[4],
+		})
+	}
+	return realPath, files, nil
+}
+
+func sudoReadFile(client *ssh.Client, filePath string) (string, error) {
+	const maxSize = 2 * 1024 * 1024
+	cmd := sudoCommand("size=$(stat -c %s -- " + shellQuote(filePath) + ") || exit 1; if [ \"$size\" -gt " + fmt.Sprintf("%d", maxSize) + " ]; then head -c " + fmt.Sprintf("%d", maxSize) + " -- " + shellQuote(filePath) + " | base64 -w0; else base64 -w0 -- " + shellQuote(filePath) + "; fi")
+	out, err := runSSHCommand(client, cmd)
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("sudo read file failed: %s", msg)
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(out)))
+	if err != nil {
+		return "", fmt.Errorf("sudo read file decode failed: %v", err)
+	}
+	return string(data), nil
+}
+
+func sudoWriteFile(client *ssh.Client, filePath, content string) error {
+	encoded := []byte(base64.StdEncoding.EncodeToString([]byte(content)))
+	cmd := "base64 -d | sudo -n tee -- " + shellQuote(filePath) + " >/dev/null"
+	out, err := runSSHCommandWithInput(client, "sh -c "+shellQuote(cmd), encoded)
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("sudo write file failed: %s", msg)
+	}
+	return nil
+}
+
+func sudoRename(client *ssh.Client, oldPath, newPath string) error {
+	cmd := sudoCommand("mv -- " + shellQuote(oldPath) + " " + shellQuote(newPath))
+	out, err := runSSHCommand(client, cmd)
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("sudo rename failed: %s", msg)
+	}
+	return nil
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -287,23 +490,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 				log.Printf("[sftp] home dir: %s", home)
 
-				// 推送初始文件列表
-				entries, listErr := sftpConn.ReadDir(home)
+				// 推送初始文件列表（文件管理默认使用 sudo）
+				listPath, files, listErr := sudoListDir(client, home)
 				if listErr == nil {
-					var files []FileInfo
-					for _, entry := range entries {
-						files = append(files, FileInfo{
-							Name:  entry.Name(),
-							Size:  entry.Size(),
-							IsDir: entry.IsDir(),
-							Mode:  entry.Mode().String(),
-							Time:  entry.ModTime().Format("2006-01-02 15:04:05"),
-						})
-					}
-					safeSend(Message{Type: "dirList", Path: home, Files: files})
+					safeSend(Message{Type: "dirList", Path: listPath, Files: files})
 				} else {
-					log.Printf("[sftp] initial list failed: %v", listErr)
-					safeSend(Message{Type: "error", Data: "list dir failed: " + listErr.Error()})
+					log.Printf("[sudo] initial list failed: %v", listErr)
+					safeSend(Message{Type: "error", Data: listErr.Error()})
 				}
 			} else {
 				log.Printf("[sftp] failed to create client: %v", err)
@@ -327,65 +520,24 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 						output := pendingOutput + string(buf[:n])
 						pendingOutput = ""
 
-						// 如果输出末尾可能包含不完整的 CWD 标记，暂存等待下一次读取
-						if strings.Contains(output, "__LINKHUB_CWD_START__") && !strings.Contains(output, "__LINKHUB_CWD_END__") {
-							pendingOutput = output
-							continue
-						}
-
-						// 检测 CWD 标记并提取路径
-						for {
-							start := indexOf(output, "__LINKHUB_CWD_START__")
-							if start == -1 {
-								break
-							}
-							end := indexOf(output[start:], "__LINKHUB_CWD_END__")
-							if end == -1 {
-								break
-							}
-							cwd := output[start+21 : start+end]
-							safeSend(Message{Type: "cwd", Data: cwd})
-							// 移除标记行（包括前面的 echo 命令和换行）
-							lineStart := start
-							for lineStart > 0 && output[lineStart-1] != '\n' {
-								lineStart--
-							}
-							lineEnd := start + end + 19
-							for lineEnd < len(output) && output[lineEnd] != '\n' {
-								lineEnd++
-							}
-							if lineEnd < len(output) {
-								lineEnd++ // 包含换行符
-							}
-							output = output[:lineStart] + output[lineEnd:]
-						}
-
-						// 也移除 echo 命令本身的回显
-						for {
-							echoStart := indexOf(output, "echo __LINKHUB_CWD_START__$(pwd)__LINKHUB_CWD_END__")
-							if echoStart == -1 {
-								break
-							}
-							echoEnd := echoStart + 51
-							// 找到这行的开始和结束
-							lineStart := echoStart
-							for lineStart > 0 && output[lineStart-1] != '\n' {
-								lineStart--
-							}
-							lineEnd := echoEnd
-							for lineEnd < len(output) && output[lineEnd] != '\n' {
-								lineEnd++
-							}
-							if lineEnd < len(output) {
-								lineEnd++
-							}
-							output = output[:lineStart] + output[lineEnd:]
+						output = stripLineContaining(output, linkhubInstallShell)
+						var oscPending string
+						output, oscPending = extractCwdReports(output, safeSend)
+						if oscPending != "" {
+							pendingOutput = oscPending
 						}
 
 						if len(output) > 0 {
 							safeSend(Message{Type: "output", Data: output})
 						}
 					}
+				}
+			}()
+
+			go func() {
+				time.Sleep(300 * time.Millisecond)
+				if sshSession != nil && sshSession.stdin != nil {
+					sshSession.stdin.Write([]byte(linkhubInstallShell + "\n"))
 				}
 			}()
 
@@ -400,59 +552,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "listDir":
-			if sshSession == nil || sshSession.sftpClient == nil {
-				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+			if sshSession == nil || sshSession.client == nil {
+				safeSend(Message{Type: "error", Data: "SSH not connected"})
 				continue
 			}
 			dirPath := msg.Path
-			log.Printf("[sftp] listDir request: %q", dirPath)
-			if dirPath == "" || dirPath == "." {
-				// 获取 home 目录
-				homeSession, herr := sshSession.client.NewSession()
-				if herr == nil {
-					out, err := homeSession.Output("echo $HOME")
-					homeSession.Close()
-					if err == nil && len(out) > 0 {
-						dirPath = string(out)
-						for len(dirPath) > 0 && (dirPath[len(dirPath)-1] == '\n' || dirPath[len(dirPath)-1] == '\r') {
-							dirPath = dirPath[:len(dirPath)-1]
-						}
-					}
-				}
-				if dirPath == "" || dirPath == "." {
-					dirPath = "/"
-				}
-			}
-			// 解析为绝对路径（处理 .. 等相对路径）
-			absPath, err := sshSession.sftpClient.RealPath(dirPath)
-			if err == nil && absPath != "" {
-				dirPath = absPath
-			}
-			entries, err := sshSession.sftpClient.ReadDir(dirPath)
+			log.Printf("[sudo] listDir request: %q", dirPath)
+			listPath, files, err := sudoListDir(sshSession.client, dirPath)
 			if err != nil {
-				log.Printf("[sftp] ReadDir failed for %q: %v", dirPath, err)
-				safeSend(Message{Type: "error", Data: "list dir failed: " + err.Error()})
+				log.Printf("[sudo] listDir failed for %q: %v", dirPath, err)
+				safeSend(Message{Type: "error", Data: err.Error()})
 				continue
 			}
-			var files []FileInfo
-			for _, entry := range entries {
-				files = append(files, FileInfo{
-					Name:  entry.Name(),
-					Size:  entry.Size(),
-					IsDir: entry.IsDir(),
-					Mode:  entry.Mode().String(),
-					Time:  entry.ModTime().Format("2006-01-02 15:04:05"),
-				})
-			}
-			safeSend(Message{Type: "dirList", Path: dirPath, Files: files})
-
-		case "getCwd":
-			if sshSession == nil || sshSession.stdin == nil {
-				continue
-			}
-			// 通过 shell stdin 注入一个隐藏的 pwd 命令
-			// 使用特殊标记包裹，在 stdout 中检测
-			sshSession.stdin.Write([]byte("echo __LINKHUB_CWD_START__$(pwd)__LINKHUB_CWD_END__\n"))
+			safeSend(Message{Type: "dirList", Path: listPath, Files: files})
 
 		case "getSysInfo":
 			if sshSession == nil || sshSession.client == nil {
@@ -478,8 +590,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}()
 
 		case "upload":
-			if sshSession == nil || sshSession.sftpClient == nil {
-				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+			if sshSession == nil || sshSession.client == nil {
+				safeSend(Message{Type: "error", Data: "SSH not connected"})
 				continue
 			}
 			remotePath := msg.Path + "/" + msg.FileName
@@ -488,22 +600,15 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				safeSend(Message{Type: "error", Data: "decode file failed: " + err.Error()})
 				continue
 			}
-			f, err := sshSession.sftpClient.Create(remotePath)
-			if err != nil {
-				safeSend(Message{Type: "error", Data: "create file failed: " + err.Error()})
-				continue
-			}
-			_, err = f.Write(decoded)
-			f.Close()
-			if err != nil {
-				safeSend(Message{Type: "error", Data: "write file failed: " + err.Error()})
+			if err := sudoWriteFile(sshSession.client, remotePath, string(decoded)); err != nil {
+				safeSend(Message{Type: "error", Data: err.Error()})
 				continue
 			}
 			safeSend(Message{Type: "uploadOk", Data: remotePath})
 
 		case "uploadChunk":
-			if sshSession == nil || sshSession.sftpClient == nil {
-				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+			if sshSession == nil || sshSession.client == nil {
+				safeSend(Message{Type: "error", Data: "SSH not connected"})
 				continue
 			}
 			remotePath := msg.Path + "/" + msg.FileName
@@ -517,40 +622,52 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if len(msg.Data) > 0 && msg.Data[0] == '0' {
 				isFirstChunk = true
 			}
-			var f *sftp.File
+			tmpName := "/tmp/linkhub-upload-" + base64.RawURLEncoding.EncodeToString([]byte(remotePath))
+			writeCmd := "tmp=" + shellQuote(tmpName) + "; "
 			if isFirstChunk {
-				f, err = sshSession.sftpClient.Create(remotePath)
-			} else {
-				f, err = sshSession.sftpClient.OpenFile(remotePath, os.O_WRONLY|os.O_APPEND)
+				writeCmd += ": > \"$tmp\" || exit 1; "
 			}
-			if err != nil {
-				safeSend(Message{Type: "error", Data: "upload open failed: " + err.Error()})
-				continue
-			}
-			_, err = f.Write(decoded)
-			f.Close()
+			writeCmd += "base64 -d >> \"$tmp\""
+			_, err = runSSHCommandWithInput(sshSession.client, "sh -c "+shellQuote(writeCmd), []byte(base64.StdEncoding.EncodeToString(decoded)))
 			if err != nil {
 				safeSend(Message{Type: "error", Data: "upload write failed: " + err.Error()})
 				continue
 			}
+			if strings.Contains(msg.Data, "/") {
+				parts := strings.SplitN(msg.Data, "/", 2)
+				chunk, _ := strconv.Atoi(parts[0])
+				totalChunks, _ := strconv.Atoi(parts[1])
+				if totalChunks > 0 && chunk >= totalChunks-1 {
+					finalCmd := "tmp=" + shellQuote(tmpName) + "; sudo -n install -m 0644 \"$tmp\" " + shellQuote(remotePath) + "; status=$?; rm -f \"$tmp\"; exit $status"
+					out, err := runSSHCommand(sshSession.client, "sh -c "+shellQuote(finalCmd))
+					if err != nil {
+						msgText := strings.TrimSpace(string(out))
+						if msgText == "" {
+							msgText = err.Error()
+						}
+						safeSend(Message{Type: "error", Data: "sudo upload failed: " + msgText})
+						continue
+					}
+					safeSend(Message{Type: "uploadOk", Data: remotePath})
+				}
+			}
 
 		case "rename":
-			if sshSession == nil || sshSession.sftpClient == nil {
-				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+			if sshSession == nil || sshSession.client == nil {
+				safeSend(Message{Type: "error", Data: "SSH not connected"})
 				continue
 			}
 			oldPath := msg.Path
 			newPath := msg.Data
-			err := sshSession.sftpClient.Rename(oldPath, newPath)
-			if err != nil {
-				safeSend(Message{Type: "error", Data: "rename failed: " + err.Error()})
+			if err := sudoRename(sshSession.client, oldPath, newPath); err != nil {
+				safeSend(Message{Type: "error", Data: err.Error()})
 				continue
 			}
 			safeSend(Message{Type: "renameOk", Data: newPath})
 
 		case "readFile":
-			if sshSession == nil || sshSession.sftpClient == nil {
-				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+			if sshSession == nil || sshSession.client == nil {
+				safeSend(Message{Type: "error", Data: "SSH not connected"})
 				continue
 			}
 			filePath := msg.Path
@@ -558,27 +675,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				safeSend(Message{Type: "error", Data: "readFile: path is empty"})
 				continue
 			}
-			f, err := sshSession.sftpClient.Open(filePath)
+			content, err := sudoReadFile(sshSession.client, filePath)
 			if err != nil {
-				safeSend(Message{Type: "error", Data: "read file failed: " + err.Error()})
+				safeSend(Message{Type: "error", Data: err.Error()})
 				continue
 			}
-			stat, _ := f.Stat()
-			// 限制读取大小为 2MB
-			maxSize := int64(2 * 1024 * 1024)
-			size := stat.Size()
-			if size > maxSize {
-				size = maxSize
-			}
-			buf := make([]byte, size)
-			n, _ := f.Read(buf)
-			f.Close()
-			content := string(buf[:n])
 			safeSend(Message{Type: "fileContent", Path: filePath, Data: content})
 
 		case "writeFile":
-			if sshSession == nil || sshSession.sftpClient == nil {
-				safeSend(Message{Type: "error", Data: "SFTP not connected"})
+			if sshSession == nil || sshSession.client == nil {
+				safeSend(Message{Type: "error", Data: "SSH not connected"})
 				continue
 			}
 			filePath := msg.Path
@@ -586,15 +692,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				safeSend(Message{Type: "error", Data: "writeFile: path is empty"})
 				continue
 			}
-			f, err := sshSession.sftpClient.Create(filePath)
-			if err != nil {
-				safeSend(Message{Type: "error", Data: "write file failed: " + err.Error()})
-				continue
-			}
-			_, err = f.Write([]byte(msg.Data))
-			f.Close()
-			if err != nil {
-				safeSend(Message{Type: "error", Data: "write file failed: " + err.Error()})
+			if err := sudoWriteFile(sshSession.client, filePath, msg.Data); err != nil {
+				safeSend(Message{Type: "error", Data: err.Error()})
 				continue
 			}
 			safeSend(Message{Type: "writeFileOk", Path: filePath})
@@ -706,25 +805,6 @@ func runServer() {
 		log.SetOutput(logFile)
 	}
 
-	// 定时清理超时的上传会话（5分钟未活动则关闭）
-	go func() {
-		ticker := time.NewTicker(60 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			uploadSessions.Lock()
-			for key, sess := range uploadSessions.sessions {
-				if time.Since(sess.lastAccess) > 5*time.Minute {
-					sess.file.Close()
-					sess.sftpClient.Close()
-					sess.client.Close()
-					delete(uploadSessions.sessions, key)
-					log.Printf("[upload] cleaned up stale session: %s", key)
-				}
-			}
-			uploadSessions.Unlock()
-		}
-	}()
-
 	http.HandleFunc("/ws", handleWebSocket)
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -832,7 +912,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
 
-		err = session.Start("tar czf - -C \"" + filePath + "\" .")
+		err = session.Start(sudoCommand("tar czf - -C " + shellQuote(filePath) + " ."))
 		if err != nil {
 			http.Error(w, "tar failed: "+err.Error(), 500)
 			return
@@ -853,34 +933,34 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 		session.Wait()
 	} else {
-		// 文件：通过 SFTP 流式读取
-		sftpClient, err := sftp.NewClient(client)
-		if err != nil {
-			http.Error(w, "SFTP failed: "+err.Error(), 500)
-			return
-		}
-		defer sftpClient.Close()
-
-		f, err := sftpClient.Open(filePath)
-		if err != nil {
-			http.Error(w, "open file failed: "+err.Error(), 500)
-			return
-		}
-		defer f.Close()
-
-		stat, _ := f.Stat()
 		parts := splitPath(filePath)
 		fileName := parts[len(parts)-1]
 
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
-		if stat != nil {
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
+
+		session, err := client.NewSession()
+		if err != nil {
+			http.Error(w, "session failed: "+err.Error(), 500)
+			return
+		}
+		defer session.Close()
+
+		stdout, err := session.StdoutPipe()
+		if err != nil {
+			http.Error(w, "stdout pipe failed", 500)
+			return
+		}
+
+		err = session.Start(sudoCommand("cat -- " + shellQuote(filePath)))
+		if err != nil {
+			http.Error(w, "cat failed: "+err.Error(), 500)
+			return
 		}
 
 		buf := make([]byte, 64*1024)
 		for {
-			n, err := f.Read(buf)
+			n, err := stdout.Read(buf)
 			if n > 0 {
 				w.Write(buf[:n])
 				if flusher, ok := w.(http.Flusher); ok {
@@ -891,83 +971,7 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-	}
-}
-
-// 上传会话管理
-var uploadSessions = struct {
-	sync.Mutex
-	sessions map[string]*uploadSession
-}{sessions: make(map[string]*uploadSession)}
-
-type uploadSession struct {
-	client     *ssh.Client
-	sftpClient *sftp.Client
-	file       *sftp.File
-	lastAccess time.Time
-}
-
-func getUploadSession(host string, port int, username, password, remoteFile string, isFirst bool) (*uploadSession, error) {
-	key := fmt.Sprintf("%s:%d:%s:%s", host, port, username, remoteFile)
-
-	uploadSessions.Lock()
-	defer uploadSessions.Unlock()
-
-	if isFirst {
-		// 关闭旧的同名会话
-		if old, ok := uploadSessions.sessions[key]; ok {
-			old.file.Close()
-			old.sftpClient.Close()
-			old.client.Close()
-			delete(uploadSessions.sessions, key)
-		}
-
-		// 建立新连接
-		config := &ssh.ClientConfig{
-			User:            username,
-			Auth:            []ssh.AuthMethod{ssh.Password(password)},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         10 * time.Second,
-		}
-		addr := fmt.Sprintf("%s:%d", host, port)
-		client, err := ssh.Dial("tcp", addr, config)
-		if err != nil {
-			return nil, err
-		}
-		sftpClient, err := sftp.NewClient(client)
-		if err != nil {
-			client.Close()
-			return nil, err
-		}
-		f, err := sftpClient.Create(remoteFile)
-		if err != nil {
-			sftpClient.Close()
-			client.Close()
-			return nil, err
-		}
-		sess := &uploadSession{client: client, sftpClient: sftpClient, file: f, lastAccess: time.Now()}
-		uploadSessions.sessions[key] = sess
-		return sess, nil
-	}
-
-	// 复用已有会话
-	sess, ok := uploadSessions.sessions[key]
-	if !ok {
-		return nil, fmt.Errorf("upload session not found")
-	}
-	sess.lastAccess = time.Now()
-	return sess, nil
-}
-
-func closeUploadSession(host string, port int, username, remoteFile string) {
-	key := fmt.Sprintf("%s:%d:%s:%s", host, port, username, remoteFile)
-	uploadSessions.Lock()
-	defer uploadSessions.Unlock()
-	if sess, ok := uploadSessions.sessions[key]; ok {
-		sess.file.Close()
-		sess.sftpClient.Close()
-		sess.client.Close()
-		delete(uploadSessions.sessions, key)
+		session.Wait()
 	}
 }
 
@@ -1016,28 +1020,49 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	remoteFile := remotePath + "/" + header.Filename
 
-	// 获取或创建上传会话
-	sess, err := getUploadSession(host, sshPort, username, password, remoteFile, chunk == 0)
+	config := &ssh.ClientConfig{
+		User:            username,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+	addr := fmt.Sprintf("%s:%d", host, sshPort)
+	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
-		http.Error(w, "upload session failed: "+err.Error(), 500)
+		http.Error(w, "SSH connect failed: "+err.Error(), 500)
+		return
+	}
+	defer client.Close()
+
+	data := new(bytes.Buffer)
+	if _, err := data.ReadFrom(file); err != nil {
+		http.Error(w, "file read failed: "+err.Error(), 500)
 		return
 	}
 
-	// 写入数据
-	buf := make([]byte, 64*1024)
-	for {
-		n, readErr := file.Read(buf)
-		if n > 0 {
-			sess.file.Write(buf[:n])
-		}
-		if readErr != nil {
-			break
-		}
+	tmpName := "/tmp/linkhub-upload-" + base64.RawURLEncoding.EncodeToString([]byte(remoteFile))
+	writeCmd := "tmp=" + shellQuote(tmpName) + "; "
+	if chunk == 0 {
+		writeCmd += ": > \"$tmp\" || exit 1; "
+	}
+	writeCmd += "base64 -d >> \"$tmp\""
+	if _, err := runSSHCommandWithInput(client, "sh -c "+shellQuote(writeCmd), []byte(base64.StdEncoding.EncodeToString(data.Bytes()))); err != nil {
+		http.Error(w, "upload write failed: "+err.Error(), 500)
+		return
 	}
 
 	// 最后一片，关闭会话
 	if chunk >= totalChunks-1 {
-		closeUploadSession(host, sshPort, username, remoteFile)
+		finalCmd := "tmp=" + shellQuote(tmpName) + "; cat \"$tmp\" | sudo -n tee -- " + shellQuote(remoteFile) + " >/dev/null; status=$?; rm -f \"$tmp\"; exit $status"
+		out, err := runSSHCommand(client, "sh -c "+shellQuote(finalCmd))
+		if err != nil {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				msg = err.Error()
+			}
+			http.Error(w, "sudo upload failed: "+msg, 500)
+			return
+		}
 	}
 
 	w.WriteHeader(200)

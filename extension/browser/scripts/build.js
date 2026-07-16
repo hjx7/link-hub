@@ -8,7 +8,7 @@
 
 import { execSync } from 'child_process';
 import { buildSync } from 'esbuild';
-import { cpSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { cpSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -70,14 +70,6 @@ cpSync(resolve(root, 'assets'), resolve(dist, 'assets'), { recursive: true });
 
 // command/index.html
 cpSync(resolve(src, 'command/index.html'), resolve(dist, 'command/index.html'));
-
-// newtab/js/data.js（供 command iframe 引用）
-mkdirSync(resolve(dist, 'newtab/js'), { recursive: true });
-const dataTsContent = readFileSync(resolve(src, 'newtab/data.ts'), 'utf-8');
-const match = dataTsContent.match(/export const devSiteCategories[^=]*=\s*(\[[\s\S]*?\n\];)/);
-if (match) {
-  writeFileSync(resolve(dist, 'newtab/js/data.js'), `window.LinkHubData = { devSiteCategories: ${match[1]} };\n`, 'utf-8');
-}
 
 console.log('  ✓ Done');
 console.log('\n✅ Build complete → dist/');

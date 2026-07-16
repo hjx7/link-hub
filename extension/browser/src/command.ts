@@ -7,10 +7,11 @@
 
 import { initCommandCore, show, hide } from './shared/command-core';
 import { buildCommandItems } from './shared/command-items';
+import { devSiteCategories } from './newtab/data';
 
-// 获取网站数据（通过 index.html 中的 <script src="../newtab/js/data.js"> 已挂载到 window.LinkHubData）
+// Keep iframe command data consistent with the newtab command palette.
 function getSiteCategories() {
-  return window.LinkHubData?.devSiteCategories || [];
+  return devSiteCategories;
 }
 
 // 获取书签

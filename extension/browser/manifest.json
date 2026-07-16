@@ -37,7 +37,7 @@
     "run_at": "document_idle"
   }],
   "web_accessible_resources": [{
-    "resources": ["command/index.html", "command/command.js", "newtab/js/data.js"],
+    "resources": ["command/index.html", "command/command.js"],
     "matches": ["<all_urls>"]
   }],
   "content_security_policy": {

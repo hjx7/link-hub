@@ -85,6 +85,27 @@ function updateFaviconInDOM(url, iconUrl) {
   });
 }
 
+function renderBookmarkListItem(bookmark) {
+  const icon = getBookmarkIcon(bookmark.url, bookmark.title);
+  return `
+    <div class="site-list-item" title="${escapeHtml(bookmark.title)}">
+      <a href="${escapeHtml(bookmark.url)}" class="site-list-link" target="_blank">
+        <div class="site-icon">
+          ${icon}
+        </div>
+        <div class="site-info">
+          <span class="site-name">${escapeHtml(bookmark.title)}</span>
+          <span class="site-domain">${getDomain(bookmark.url)}</span>
+        </div>
+      </a>
+      <div class="bookmark-card-actions">
+        <button class="action-btn edit-btn" data-action="edit-bookmark" data-id="${bookmark.id}" title="编辑">✏️</button>
+        <button class="action-btn delete-btn" data-action="delete-bookmark" data-id="${bookmark.id}" data-type="bookmark" title="删除">🗑️</button>
+      </div>
+    </div>
+  `;
+}
+
 // 加载 Chrome 书签树
 async function loadChromeBookmarkTree() {
   try {
@@ -215,22 +236,7 @@ async function renderSystemFolderAsCategory(node, depth) {
   let bookmarksHtml = '';
   if (bookmarks.length > 0) {
     for (const bookmark of bookmarks) {
-      const icon = getBookmarkIcon(bookmark.url, bookmark.title);
-      bookmarksHtml += `
-        <a href="${escapeHtml(bookmark.url)}" class="site-list-item" target="_blank" title="${escapeHtml(bookmark.title)}">
-          <div class="site-icon">
-            ${icon}
-          </div>
-          <div class="site-info">
-            <span class="site-name">${escapeHtml(bookmark.title)}</span>
-            <span class="site-domain">${getDomain(bookmark.url)}</span>
-          </div>
-          <div class="bookmark-card-actions">
-            <button class="action-btn edit-btn" data-action="edit-bookmark" data-id="${bookmark.id}" title="编辑">✏️</button>
-            <button class="action-btn delete-btn" data-action="delete-bookmark" data-id="${bookmark.id}" data-type="bookmark" title="删除">🗑️</button>
-          </div>
-        </a>
-      `;
+      bookmarksHtml += renderBookmarkListItem(bookmark);
     }
   }
   
@@ -290,22 +296,7 @@ async function renderFolderBookmarks(folder) {
   
   // 先渲染所有书签（列表视图，图标会异步加载后更新）
   for (const bookmark of bookmarks) {
-    const icon = getBookmarkIcon(bookmark.url, bookmark.title);
-    html += `
-      <a href="${escapeHtml(bookmark.url)}" class="site-list-item" target="_blank" title="${escapeHtml(bookmark.title)}">
-        <div class="site-icon">
-          ${icon}
-        </div>
-        <div class="site-info">
-          <span class="site-name">${escapeHtml(bookmark.title)}</span>
-          <span class="site-domain">${getDomain(bookmark.url)}</span>
-        </div>
-        <div class="bookmark-card-actions">
-          <button class="action-btn edit-btn" data-action="edit-bookmark" data-id="${bookmark.id}" title="编辑">✏️</button>
-          <button class="action-btn delete-btn" data-action="delete-bookmark" data-id="${bookmark.id}" data-type="bookmark" title="删除">🗑️</button>
-        </div>
-      </a>
-    `;
+    html += renderBookmarkListItem(bookmark);
   }
   
   // 再渲染所有子文件夹
@@ -864,22 +855,7 @@ async function renderFolderContent(folderId) {
   if (bookmarks.length > 0) {
     html += '<div class="content-list">';
     for (const bookmark of bookmarks) {
-      const icon = getBookmarkIcon(bookmark.url, bookmark.title);
-      html += `
-        <a href="${escapeHtml(bookmark.url)}" class="site-list-item" target="_blank" title="${escapeHtml(bookmark.title)}">
-          <div class="site-icon">
-            ${icon}
-          </div>
-          <div class="site-info">
-            <span class="site-name">${escapeHtml(bookmark.title)}</span>
-            <span class="site-domain">${getDomain(bookmark.url)}</span>
-          </div>
-          <div class="bookmark-card-actions">
-            <button class="action-btn edit-btn" data-action="edit-bookmark" data-id="${bookmark.id}" title="编辑">✏️</button>
-            <button class="action-btn delete-btn" data-action="delete-bookmark" data-id="${bookmark.id}" data-type="bookmark" title="删除">🗑️</button>
-          </div>
-        </a>
-      `;
+      html += renderBookmarkListItem(bookmark);
     }
     html += '</div>';
   }
@@ -906,22 +882,7 @@ async function renderSubfolderItems(folder) {
   
   for (const child of folder.children) {
     if (child.url) {
-      const icon = getBookmarkIcon(child.url, child.title);
-      html += `
-        <a href="${escapeHtml(child.url)}" class="site-list-item" target="_blank" title="${escapeHtml(child.title)}">
-          <div class="site-icon">
-            ${icon}
-          </div>
-          <div class="site-info">
-            <span class="site-name">${escapeHtml(child.title)}</span>
-            <span class="site-domain">${getDomain(child.url)}</span>
-          </div>
-          <div class="bookmark-card-actions">
-            <button class="action-btn edit-btn" data-action="edit-bookmark" data-id="${child.id}" title="编辑">✏️</button>
-            <button class="action-btn delete-btn" data-action="delete-bookmark" data-id="${child.id}" data-type="bookmark" title="删除">🗑️</button>
-          </div>
-        </a>
-      `;
+      html += renderBookmarkListItem(child);
     }
   }
   
