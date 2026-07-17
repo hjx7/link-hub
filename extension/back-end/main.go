@@ -36,20 +36,21 @@ const (
 )
 
 type Message struct {
-	Type     string     `json:"type"`
-	Data     string     `json:"data,omitempty"`
-	Host     string     `json:"host,omitempty"`
-	Port     int        `json:"port,omitempty"`
-	Username string     `json:"username,omitempty"`
-	Password string     `json:"password,omitempty"`
-	Key      string     `json:"key,omitempty"`
-	Cols     int        `json:"cols,omitempty"`
-	Rows     int        `json:"rows,omitempty"`
-	Token    string     `json:"token,omitempty"`
-	Path     string     `json:"path,omitempty"`
-	FileName string     `json:"fileName,omitempty"`
-	FileData string     `json:"fileData,omitempty"`
-	Files    []FileInfo `json:"files,omitempty"`
+	Type      string     `json:"type"`
+	Data      string     `json:"data,omitempty"`
+	SessionID string     `json:"sessionId,omitempty"`
+	Host      string     `json:"host,omitempty"`
+	Port      int        `json:"port,omitempty"`
+	Username  string     `json:"username,omitempty"`
+	Password  string     `json:"password,omitempty"`
+	Key       string     `json:"key,omitempty"`
+	Cols      int        `json:"cols,omitempty"`
+	Rows      int        `json:"rows,omitempty"`
+	Token     string     `json:"token,omitempty"`
+	Path      string     `json:"path,omitempty"`
+	FileName  string     `json:"fileName,omitempty"`
+	FileData  string     `json:"fileData,omitempty"`
+	Files     []FileInfo `json:"files,omitempty"`
 }
 
 type FileInfo struct {
@@ -68,22 +69,121 @@ var upgrader = websocket.Upgrader{
 }
 
 type SSHSession struct {
-	client     *ssh.Client
-	session    *ssh.Session
-	stdin      interface{ Write([]byte) (int, error) }
-	sftpClient *sftp.Client
+	client      *ssh.Client
+	session     *ssh.Session
+	stdin       interface{ Write([]byte) (int, error) }
+	sftpClient  *sftp.Client
+	mu          sync.Mutex
+	activeUsers int
+	closing     bool
+	closed      bool
 }
 
 func (s *SSHSession) Close() {
-	if s.sftpClient != nil {
-		s.sftpClient.Close()
+	s.mu.Lock()
+	if s.closing || s.closed {
+		s.mu.Unlock()
+		return
 	}
-	if s.session != nil {
-		s.session.Close()
+	s.closing = true
+	if s.activeUsers > 0 {
+		s.mu.Unlock()
+		return
 	}
-	if s.client != nil {
-		s.client.Close()
+	sftpClient, session, client := s.detachResourcesLocked()
+	s.mu.Unlock()
+	closeSSHResources(sftpClient, session, client)
+}
+
+func (s *SSHSession) AcquireClient() (*ssh.Client, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing || s.closed || s.client == nil {
+		return nil, false
 	}
+	s.activeUsers++
+	return s.client, true
+}
+
+func (s *SSHSession) ReleaseClient() {
+	s.mu.Lock()
+	if s.activeUsers > 0 {
+		s.activeUsers--
+	}
+	if !s.closing || s.activeUsers > 0 || s.closed {
+		s.mu.Unlock()
+		return
+	}
+	sftpClient, session, client := s.detachResourcesLocked()
+	s.mu.Unlock()
+	closeSSHResources(sftpClient, session, client)
+}
+
+func (s *SSHSession) detachResourcesLocked() (*sftp.Client, *ssh.Session, *ssh.Client) {
+	s.closed = true
+	sftpClient := s.sftpClient
+	session := s.session
+	client := s.client
+	s.sftpClient = nil
+	s.session = nil
+	s.client = nil
+	return sftpClient, session, client
+}
+
+func closeSSHResources(sftpClient *sftp.Client, session *ssh.Session, client *ssh.Client) {
+	if sftpClient != nil {
+		sftpClient.Close()
+	}
+	if session != nil {
+		session.Close()
+	}
+	if client != nil {
+		client.Close()
+	}
+}
+
+var sshSessionRegistry = struct {
+	sync.RWMutex
+	sessions map[string]*SSHSession
+}{sessions: make(map[string]*SSHSession)}
+
+func registerSSHSession(sessionID string, session *SSHSession) {
+	if sessionID == "" || session == nil {
+		return
+	}
+	sshSessionRegistry.Lock()
+	previous := sshSessionRegistry.sessions[sessionID]
+	sshSessionRegistry.sessions[sessionID] = session
+	sshSessionRegistry.Unlock()
+	if previous != nil && previous != session {
+		previous.Close()
+	}
+}
+
+func unregisterSSHSession(sessionID string, session *SSHSession) {
+	if sessionID == "" || session == nil {
+		return
+	}
+	sshSessionRegistry.Lock()
+	if sshSessionRegistry.sessions[sessionID] == session {
+		delete(sshSessionRegistry.sessions, sessionID)
+	}
+	sshSessionRegistry.Unlock()
+}
+
+func acquireSSHSession(sessionID string) (*SSHSession, *ssh.Client, bool) {
+	sshSessionRegistry.RLock()
+	session := sshSessionRegistry.sessions[sessionID]
+	if session == nil {
+		sshSessionRegistry.RUnlock()
+		return nil, nil, false
+	}
+	client, ok := session.AcquireClient()
+	sshSessionRegistry.RUnlock()
+	if !ok {
+		return nil, nil, false
+	}
+	return session, client, true
 }
 
 func stripLineContaining(output, needle string) string {
@@ -296,6 +396,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	var sshSession *SSHSession
+	var sshSessionID string
 	authenticated := false
 	remoteAddr := r.RemoteAddr
 	var writeMu sync.Mutex
@@ -369,8 +470,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if sshSession != nil {
+				unregisterSSHSession(sshSessionID, sshSession)
 				sshSession.Close()
 				sshSession = nil
+				sshSessionID = ""
 			}
 
 			sshHost := msg.Host
@@ -502,9 +605,14 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				log.Printf("[sftp] failed to create client: %v", err)
 			}
 
+			sshSessionID = msg.SessionID
+			registerSSHSession(sshSessionID, sshSession)
+
 			safeSend(Message{Type: "connected", Data: addr})
 			log.Printf("[ssh] connected %s@%s", msg.Username, addr)
 
+			connectedSession := sshSession
+			connectedSessionID := sshSessionID
 			go func() {
 				defer func() { recover() }()
 				buf := make([]byte, 8192)
@@ -512,6 +620,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				for {
 					n, err := stdoutPipe.Read(buf)
 					if err != nil {
+						unregisterSSHSession(connectedSessionID, connectedSession)
+						connectedSession.Close()
 						safeSend(Message{Type: "disconnect", Data: "SSH disconnected"})
 						log.Printf("[ssh] disconnected %s", addr)
 						return
@@ -700,8 +810,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case "disconnect":
 			if sshSession != nil {
+				unregisterSSHSession(sshSessionID, sshSession)
 				sshSession.Close()
 				sshSession = nil
+				sshSessionID = ""
 			}
 			safeSend(Message{Type: "disconnected"})
 			log.Printf("[ssh] manual disconnect %s", remoteAddr)
@@ -710,6 +822,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	closed = true
 	if sshSession != nil {
+		unregisterSSHSession(sshSessionID, sshSession)
 		sshSession.Close()
 	}
 	log.Printf("[conn] client left: %s", remoteAddr)
@@ -727,7 +840,7 @@ func main() {
 	action := flag.String("action", "run", "action: run, install, uninstall")
 	flag.IntVar(&port, "port", 18022, "listen port")
 	flag.StringVar(&token, "token", "", "auth token")
-	flag.StringVar(&bind, "bind", "0.0.0.0", "bind address")
+	flag.StringVar(&bind, "bind", "127.0.0.1", "bind address")
 	flag.Parse()
 
 	switch *action {
@@ -857,38 +970,21 @@ func runServer() {
 func handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	host := r.URL.Query().Get("host")
-	portStr := r.URL.Query().Get("port")
-	username := r.URL.Query().Get("username")
-	password := r.URL.Query().Get("password")
+	sessionID := r.URL.Query().Get("sessionId")
 	filePath := r.URL.Query().Get("path")
 	isDir := r.URL.Query().Get("isDir")
 
-	if host == "" || username == "" || filePath == "" {
+	if sessionID == "" || filePath == "" {
 		http.Error(w, "missing parameters", 400)
 		return
 	}
 
-	sshPort := 22
-	if portStr != "" {
-		fmt.Sscanf(portStr, "%d", &sshPort)
-	}
-
-	// 建立 SSH 连接
-	config := &ssh.ClientConfig{
-		User:            username,
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	addr := fmt.Sprintf("%s:%d", host, sshPort)
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		http.Error(w, "SSH connect failed: "+err.Error(), 500)
+	sshSession, client, ok := acquireSSHSession(sessionID)
+	if !ok {
+		http.Error(w, "SSH session not found or disconnected", http.StatusGone)
 		return
 	}
-	defer client.Close()
+	defer sshSession.ReleaseClient()
 
 	if isDir == "true" {
 		// 文件夹：tar 打包流式传输

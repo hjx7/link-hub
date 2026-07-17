@@ -128,11 +128,12 @@ function bindWsEvents(conn, connId, ws) {
 }
 
 // 构建连接消息
-function buildConnectMsg(server, dims) {
+function buildConnectMsg(server, dims, sessionId) {
   const host = server.wsUrl || server.host;
   const useKey = server.authType === 'key' && server.privateKey;
   const msg = {
     type: 'connect',
+    sessionId,
     host: host,
     port: server.port || 22,
     username: server.username,
@@ -146,6 +147,13 @@ function buildConnectMsg(server, dims) {
     msg.password = server.password;
   }
   return msg;
+}
+
+function createSessionId() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 // 初始化
@@ -702,7 +710,7 @@ function connectServer(serverId) {
   terminal.loadAddon(fitAddon);
   terminal.open(document.getElementById(`termarea-${connId}`));
 
-  const conn = { id: connId, ws, terminal, fitAddon, serverId, panel: termPanel, name: server.name };
+  const conn = { id: connId, sessionId: createSessionId(), ws, terminal, fitAddon, serverId, panel: termPanel, name: server.name };
   _connections.push(conn);
 
   // 切换到新 tab
@@ -734,7 +742,7 @@ function connectServer(serverId) {
     } else {
       setTimeout(() => {
         const dims = fitAddon.proposeDimensions();
-        ws.send(JSON.stringify(buildConnectMsg(server, dims)));
+        ws.send(JSON.stringify(buildConnectMsg(server, dims, conn.sessionId)));
       }, 300);
     }
   };
@@ -754,6 +762,7 @@ function connectServer(serverId) {
         const dims = fitAddon.proposeDimensions();
         conn.ws.send(JSON.stringify({
           type: 'connect',
+          sessionId: conn.sessionId,
           host: host,
           port: server.port || 22,
           username: server.username,
@@ -866,7 +875,7 @@ function reconnect(connId) {
   newWs.onopen = () => {
     setTimeout(() => {
       const dims = conn.fitAddon.proposeDimensions();
-      newWs.send(JSON.stringify(buildConnectMsg(server, dims)));
+      newWs.send(JSON.stringify(buildConnectMsg(server, dims, conn.sessionId)));
     }, 300);
   };
 
@@ -1356,11 +1365,9 @@ function downloadFile() {
   if (!conn) return;
 
   // 通过 HTTP 下载接口
-  const server = _servers.find(s => s.id === conn.serverId);
-  if (!server) return;
+  if (!conn.sessionId) return;
 
-  const host = server.wsUrl || server.host;
-  const downloadUrl = `http://localhost:18022/download?host=${encodeURIComponent(host)}&port=${server.port || 22}&username=${encodeURIComponent(server.username)}&password=${encodeURIComponent(server.password)}&path=${encodeURIComponent(filePath)}&isDir=${isDir}`;
+  const downloadUrl = `http://localhost:18022/download?sessionId=${encodeURIComponent(conn.sessionId)}&path=${encodeURIComponent(filePath)}&isDir=${isDir}`;
 
   // 用隐藏的 a 标签触发下载
   const a = document.createElement('a');

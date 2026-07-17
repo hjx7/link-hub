@@ -8,7 +8,15 @@
 
 import { execSync } from 'child_process';
 import { buildSync } from 'esbuild';
-import { cpSync, mkdirSync, rmSync, existsSync } from 'fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmdirSync,
+  statSync,
+  unlinkSync,
+} from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -17,8 +25,33 @@ const root = resolve(__dirname, '..');
 const dist = resolve(root, 'dist');
 const src = resolve(root, 'src');
 
+function removeRecursive(targetPath) {
+  if (!existsSync(targetPath)) return;
+  for (const entry of readdirSync(targetPath)) {
+    const entryPath = resolve(targetPath, entry);
+    if (statSync(entryPath).isDirectory()) {
+      removeRecursive(entryPath);
+    } else {
+      unlinkSync(entryPath);
+    }
+  }
+  rmdirSync(targetPath);
+}
+
+function copyRecursive(sourcePath, targetPath) {
+  if (statSync(sourcePath).isDirectory()) {
+    mkdirSync(targetPath, { recursive: true });
+    for (const entry of readdirSync(sourcePath)) {
+      copyRecursive(resolve(sourcePath, entry), resolve(targetPath, entry));
+    }
+    return;
+  }
+  mkdirSync(dirname(targetPath), { recursive: true });
+  copyFileSync(sourcePath, targetPath);
+}
+
 // 清空 dist
-if (existsSync(dist)) rmSync(dist, { recursive: true });
+removeRecursive(dist);
 mkdirSync(dist, { recursive: true });
 
 // 1. TypeScript 类型检查
@@ -28,7 +61,8 @@ try {
   console.log('  ✓ No type errors');
 } catch (e) {
   console.error('  ✗ Type errors found:');
-  console.error(e.stdout?.toString() || e.message);
+  const stdout = e && e.stdout ? e.stdout.toString() : '';
+  console.error(stdout || (e && e.message ? e.message : e));
   process.exit(1);
 }
 
@@ -63,13 +97,13 @@ console.log('  ✓ background.js, content.js, command.js');
 console.log('→ Copying static files...');
 
 // manifest.json
-cpSync(resolve(root, 'manifest.json'), resolve(dist, 'manifest.json'));
+copyRecursive(resolve(root, 'manifest.json'), resolve(dist, 'manifest.json'));
 
 // assets/
-cpSync(resolve(root, 'assets'), resolve(dist, 'assets'), { recursive: true });
+copyRecursive(resolve(root, 'assets'), resolve(dist, 'assets'));
 
 // command/index.html
-cpSync(resolve(src, 'command/index.html'), resolve(dist, 'command/index.html'));
+copyRecursive(resolve(src, 'command/index.html'), resolve(dist, 'command/index.html'));
 
 console.log('  ✓ Done');
 console.log('\n✅ Build complete → dist/');

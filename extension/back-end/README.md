@@ -30,7 +30,7 @@ Go 实现的 WebSocket-SSH 中转服务，作为浏览器扩展和远程 SSH 服
 | type | 功能 | 关键字段 |
 |------|------|----------|
 | `auth` | Token 认证 | `token` |
-| `connect` | 建立 SSH 连接 | `host`, `port`, `username`, `password`/`key`, `cols`, `rows` |
+| `connect` | 建立 SSH 连接 | `sessionId`, `host`, `port`, `username`, `password`/`key`, `cols`, `rows` |
 | `input` | 终端输入 | `data` |
 | `resize` | 调整终端大小 | `cols`, `rows` |
 | `disconnect` | 断开 SSH | — |
@@ -72,9 +72,10 @@ Go 实现的 WebSocket-SSH 中转服务，作为浏览器扩展和远程 SSH 服
 
 - 单文件：通过 SFTP 流式读取，返回 `application/octet-stream`
 - 文件夹：远程执行 `tar czf -` 实时打包，流式传输 `.tar.gz`
-- 独立 SSH 连接（不复用 WebSocket 会话）
+- 复用对应 WebSocket 终端已建立的 SSH 会话
+- 终端会话断开后，下载请求会返回会话失效
 
-**参数：** `host`, `port`, `username`, `password`, `path`, `isDir`
+**参数：** `sessionId`, `path`, `isDir`
 
 ### HTTP 分片上传 (`/upload`)
 
@@ -129,7 +130,7 @@ Go 实现的 WebSocket-SSH 中转服务，作为浏览器扩展和远程 SSH 服
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `-port` | 18022 | 监听端口 |
-| `-bind` | 0.0.0.0 | 绑定地址 |
+| `-bind` | 127.0.0.1 | 绑定地址 |
 | `-token` | 空 | 认证 Token（为空则不校验） |
 | `-action` | run | 动作：`run`(运行) / `install`(安装自启) / `uninstall`(卸载自启) |
 

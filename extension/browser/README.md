@@ -4,6 +4,8 @@ Chrome 浏览器扩展前端，基于 TypeScript + Vite 构建。
 
 ## 快速开始
 
+环境要求：Node.js 12.22.0 或更高版本。
+
 ```bash
 # 安装依赖
 npm install

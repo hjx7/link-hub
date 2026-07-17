@@ -132,6 +132,8 @@ linkhub/
 
 ### 前端（Chrome 扩展）
 
+环境要求：Node.js 12.22.0 或更高版本。
+
 ```bash
 cd extension/browser
 
